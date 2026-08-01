@@ -1029,6 +1029,74 @@
           "requires_reboot": false
         }
       ]
+    },
+    {
+      "id": "os_environments",
+      "name": "OS Environments",
+      "description": "Kali Linux and Parrot OS security environments added alongside Raspberry Pi OS — headless CLI toolsets or full graphical desktops via VNC",
+      "icon": "terminal",
+      "tools": [
+        {
+          "id": "kali_headless",
+          "name": "Kali Linux Core — Headless",
+          "description": "Adds the Kali Linux rolling repository and installs kali-linux-headless: 100+ security tools including Metasploit, Wireshark, aircrack-ng, sqlmap, Burp Suite, and more. CLI only, no desktop. Raspberry Pi OS is preserved.",
+          "packages": ["kali-linux-headless"],
+          "check_cmd": "dpkg -l kali-linux-headless 2>/dev/null | grep -q '^ii'",
+          "check_pkg": "kali-linux-headless",
+          "install_script": "os_environments.sh",
+          "uninstall_cmd": "apt-get remove -y kali-linux-headless && rm -f /etc/apt/sources.list.d/kali.list /etc/apt/preferences.d/kali-pinning /usr/share/keyrings/kali-archive-keyring.gpg && apt-get autoremove -y && apt-get update -qq",
+          "builtin": false,
+          "tags": ["kali", "linux", "security", "pentest", "headless"],
+          "requires_reboot": false,
+          "disk_space_gb": 2.0,
+          "warning": "Adds Kali Linux rolling repo alongside Pi OS. ~2GB download. Pi OS packages are pinned higher priority — your existing system is preserved."
+        },
+        {
+          "id": "kali_desktop",
+          "name": "Kali Linux — XFCE Desktop + VNC",
+          "description": "Full Kali Linux security tools plus XFCE4 minimal graphical desktop. Access the complete Kali GUI via VNC from any VNC client. Default VNC password: 'bakerpi' — change with vncpasswd after install.",
+          "packages": ["kali-desktop-xfce"],
+          "check_cmd": "dpkg -l kali-desktop-xfce 2>/dev/null | grep -q '^ii'",
+          "check_pkg": "kali-desktop-xfce",
+          "install_script": "os_environments.sh",
+          "uninstall_cmd": "apt-get remove -y kali-desktop-xfce tigervnc-standalone-server && rm -f /etc/apt/sources.list.d/kali.list /etc/apt/preferences.d/kali-pinning /usr/share/keyrings/kali-archive-keyring.gpg && apt-get autoremove -y && apt-get update -qq",
+          "builtin": false,
+          "tags": ["kali", "linux", "xfce", "desktop", "vnc", "gui"],
+          "requires_reboot": false,
+          "disk_space_gb": 3.5,
+          "warning": "Installs XFCE4 desktop on top of Kali tools. ~3.5GB download. Default VNC password: 'bakerpi' — change after install."
+        },
+        {
+          "id": "parrot_core",
+          "name": "Parrot OS Core — Headless",
+          "description": "Adds the Parrot OS rolling repository and installs parrot-tools-core: a curated set of penetration testing, forensics, and privacy tools. CLI only, no desktop. Raspberry Pi OS is preserved.",
+          "packages": ["parrot-tools-core"],
+          "check_cmd": "dpkg -l parrot-tools-core 2>/dev/null | grep -q '^ii'",
+          "check_pkg": "parrot-tools-core",
+          "install_script": "os_environments.sh",
+          "uninstall_cmd": "apt-get remove -y parrot-tools-core && rm -f /etc/apt/sources.list.d/parrot.list /etc/apt/preferences.d/parrot-pinning /usr/share/keyrings/parrot-archive-keyring.gpg && apt-get autoremove -y && apt-get update -qq",
+          "builtin": false,
+          "tags": ["parrot", "linux", "security", "pentest", "privacy", "headless"],
+          "requires_reboot": false,
+          "disk_space_gb": 1.8,
+          "warning": "Adds Parrot OS rolling repo alongside Pi OS. ~1.8GB download. Pi OS packages are pinned higher priority — your existing system is preserved."
+        },
+        {
+          "id": "parrot_desktop",
+          "name": "Parrot OS — MATE Desktop + VNC",
+          "description": "Full Parrot OS security and privacy tools plus MATE lightweight graphical desktop. Access the complete Parrot GUI via VNC. Includes AnonSurf, privacy tools, and the full Parrot toolset. Default VNC password: 'bakerpi'.",
+          "packages": ["parrot-desktop-mate"],
+          "check_cmd": "dpkg -l parrot-desktop-mate 2>/dev/null | grep -q '^ii'",
+          "check_pkg": "parrot-desktop-mate",
+          "install_script": "os_environments.sh",
+          "uninstall_cmd": "apt-get remove -y parrot-desktop-mate tigervnc-standalone-server && rm -f /etc/apt/sources.list.d/parrot.list /etc/apt/preferences.d/parrot-pinning /usr/share/keyrings/parrot-archive-keyring.gpg && apt-get autoremove -y && apt-get update -qq",
+          "builtin": false,
+          "tags": ["parrot", "linux", "mate", "desktop", "vnc", "gui", "privacy"],
+          "requires_reboot": false,
+          "disk_space_gb": 3.0,
+          "warning": "Installs MATE desktop on top of Parrot tools. ~3GB download. Default VNC password: 'bakerpi' — change after install."
+        }
+      ]
     }
   ]
 }

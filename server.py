@@ -296,6 +296,10 @@ class SSHConnectRequest(BaseModel):
     password: Optional[str] = None
     key_file: Optional[str] = None
 
+class VNCRequest(BaseModel):
+    geometry: str = "1280x800"
+    display: int = 1
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse)
@@ -460,6 +464,37 @@ async def ssh_status():
     connected = ssh_client is not None and ssh_client.get_transport() is not None \
                 and ssh_client.get_transport().is_active()
     return {"mode": "ssh", "connected": connected, "host": config.get("host", "")}
+
+# ── VNC Service Control ───────────────────────────────────────────────────────
+
+@app.get("/api/services/vnc/status")
+async def vnc_status():
+    rc, _ = run_cmd("pgrep -x Xtigervnc 2>/dev/null || pgrep -x Xvnc 2>/dev/null")
+    running = rc == 0
+    host = ""
+    if running:
+        rc2, ip = run_cmd("hostname -I 2>/dev/null | awk '{print $1}'")
+        host = ip.strip() if rc2 == 0 else config.get("host", "172.16.0.1")
+    return {"running": running, "host": host, "port": 5901, "display": ":1"}
+
+@app.post("/api/services/vnc/start")
+async def vnc_start(req: VNCRequest):
+    run_cmd(f"vncserver -kill :{req.display} 2>/dev/null; true")
+    rc, out = run_cmd(
+        f"vncserver :{req.display} -geometry {req.geometry} -depth 24 -localhost no 2>&1"
+    )
+    if rc != 0 and "desktop" not in out.lower() and "starting" not in out.lower():
+        raise HTTPException(status_code=500, detail=out.strip() or "vncserver failed to start")
+    rc2, ip = run_cmd("hostname -I 2>/dev/null | awk '{print $1}'")
+    host = ip.strip() if rc2 == 0 else config.get("host", "172.16.0.1")
+    port = 5900 + req.display
+    return {"started": True, "host": host, "port": port,
+            "display": f":{req.display}", "geometry": req.geometry}
+
+@app.post("/api/services/vnc/stop")
+async def vnc_stop():
+    run_cmd("vncserver -kill :1 2>/dev/null; pkill -x Xtigervnc 2>/dev/null; pkill -x Xvnc 2>/dev/null; true")
+    return {"stopped": True}
 
 # ── Startup ───────────────────────────────────────────────────────────────────
 

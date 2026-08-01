@@ -242,6 +242,42 @@ button { cursor: pointer; font: inherit; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ── OS Environment Cards ───────────────────────────────────────── */
+.os-tag { display: inline-flex; align-items: center; gap: 4px; font-size: 10px;
+  padding: 2px 7px; border-radius: 3px; font-family: var(--mono);
+  background: var(--bg); border: 1px solid var(--border); color: var(--muted); }
+.disk-badge { display: inline-flex; align-items: center; gap: 4px;
+  background: rgba(210,153,34,0.10); border: 1px solid rgba(210,153,34,0.35);
+  color: var(--amber); padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 500; }
+.os-warning {
+  margin-top: 6px; background: rgba(210,153,34,0.06); border: 1px solid rgba(210,153,34,0.25);
+  border-radius: 4px; padding: 7px 11px; font-size: 11px; color: var(--amber); line-height: 1.5;
+}
+
+/* ── VNC Panel ──────────────────────────────────────────────────── */
+#vnc-panel {
+  display: none; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px 18px; margin-bottom: 16px;
+}
+#vnc-panel.visible { display: block; }
+#vnc-panel h4 { font-size: 13px; font-weight: 600; margin-bottom: 12px;
+  display: flex; align-items: center; gap: 8px; }
+.vnc-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+  flex-shrink: 0; transition: background 0.2s; }
+.vnc-dot.running { background: var(--green); box-shadow: 0 0 6px rgba(63,185,80,0.5); }
+.vnc-dot.stopped { background: var(--muted); }
+.vnc-info {
+  font-family: var(--mono); font-size: 12px; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 4px; padding: 8px 12px;
+  margin: 10px 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.vnc-addr { color: var(--accent); font-weight: 600; }
+.vnc-note { color: var(--muted); font-size: 11px; }
+#vnc-geo {
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--text); padding: 5px 8px; font-size: 12px; font-family: var(--mono);
+}
+
 /* ── SSH Connect Panel ──────────────────────────────────────────── */
 #ssh-panel {
   display: none; background: var(--surface); border: 1px solid var(--border);
@@ -309,6 +345,30 @@ button { cursor: pointer; font: inherit; }
 
     <!-- Main -->
     <main id="main">
+      <!-- VNC Desktop Control Panel -->
+      <div id="vnc-panel">
+        <h4>
+          <span class="vnc-dot stopped" id="vnc-dot"></span>
+          Desktop (VNC) Control
+        </h4>
+        <div id="vnc-info" class="vnc-info" style="display:none">
+          <span class="vnc-addr" id="vnc-addr"></span>
+          <span class="vnc-note">Connect with any VNC client · password: <code>bakerpi</code> (change with <code>vncpasswd</code>)</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn primary btn-sm" id="vnc-start-btn" onclick="vncStart()">▶ Start Desktop</button>
+          <button class="btn btn-sm danger" id="vnc-stop-btn" onclick="vncStop()" style="display:none">■ Stop Desktop</button>
+          <select id="vnc-geo">
+            <option value="1280x800">1280×800</option>
+            <option value="1024x768">1024×768</option>
+            <option value="1920x1080">1920×1080</option>
+            <option value="800x600">800×600</option>
+          </select>
+          <button class="btn btn-sm" onclick="refreshVNC()" title="Refresh VNC status">↻</button>
+          <span id="vnc-status-text" style="font-size:12px;color:var(--muted)"></span>
+        </div>
+      </div>
+
       <!-- SSH panel -->
       <div id="ssh-panel">
         <h4>Connect to Pi Zero via SSH (PC Mode)</h4>
@@ -406,7 +466,8 @@ const CAT_ICONS = {
   hid_usb: '⌨', network: '🌐', security_research: '🔍',
   wifi_wireless: '📡', gpio_sensors: '🔌', iot_protocols: '📶',
   media: '🎵', dev_tools: '💻', monitoring: '📊',
-  sdr: '📻', home_automation: '🏠', infrastructure: '🔧'
+  sdr: '📻', home_automation: '🏠', infrastructure: '🔧',
+  os_environments: '🐧',
 };
 
 function buildSidebar(cat) {
@@ -433,6 +494,13 @@ function selectCat(catId, btn) {
   document.getElementById('cat-title').textContent = catId === 'all' ? 'All Tools' : (catDef?.name || catId);
   document.getElementById('cat-desc').textContent = catId === 'all' ? 'All available capabilities for Pi Zero 1.3' : (catDef?.description || '');
   document.getElementById('search').value = '';
+  const vncPanel = document.getElementById('vnc-panel');
+  if (catId === 'os_environments') {
+    vncPanel.classList.add('visible');
+    refreshVNC();
+  } else {
+    vncPanel.classList.remove('visible');
+  }
   renderGrid();
 }
 
@@ -503,7 +571,9 @@ function toolCard(t) {
       ? `<span class="badge installed">✓ Installed</span>`
       : `<span class="badge not-installed">○ Not installed</span>`;
   const rebootBadge = t.requires_reboot && !t.installed ? `<span class="badge reboot">↺ Reboot needed</span>` : '';
+  const diskBadge = t.disk_space_gb ? `<span class="disk-badge">💾 ~${t.disk_space_gb}GB</span>` : '';
   const tags = (t.tags || []).slice(0, 4).map(g => `<span class="tag">${g}</span>`).join('');
+  const warningBlock = t.warning ? `<div class="os-warning">⚠ ${escHtml(t.warning)}</div>` : '';
 
   const installBtnLabel = t.builtin ? 'Built-in' : t.installed ? '↺ Reinstall' : '⬇ Install';
   const installBtnDisabled = t.builtin ? 'disabled' : '';
@@ -522,8 +592,9 @@ function toolCard(t) {
         <div class="card-desc">${escHtml(t.description)}</div>
       </div>
     </div>
+    ${warningBlock}
     <div class="card-footer">
-      ${badge}${rebootBadge}
+      ${badge}${rebootBadge}${diskBadge}
       <div class="spacer"></div>
       ${tags.length ? `<div class="tags">${tags}</div>` : ''}
     </div>
@@ -564,6 +635,12 @@ function updateSelectBar() {
 
 // ── Install / Update ──────────────────────────────────────────────────────────
 async function installOne(toolId) {
+  const tool = toolsData[toolId];
+  if (tool && tool.warning) {
+    const disk = tool.disk_space_gb ? `\n\nDisk required: ~${tool.disk_space_gb} GB` : '';
+    const ok = confirm(`Large Installation\n\n${tool.warning}${disk}\n\nThis will take several minutes on Pi Zero. Proceed?`);
+    if (!ok) return;
+  }
   await startJob([toolId], 'install');
 }
 
@@ -805,6 +882,70 @@ function showToast(msg, type = 'info') {
     toast.classList.remove('show');
     setTimeout(() => toast.remove(), 250);
   }, 3500);
+}
+
+// ── VNC Control ──────────────────────────────────────────────────────────────
+async function refreshVNC() {
+  const statusText = document.getElementById('vnc-status-text');
+  try {
+    const r = await fetch('/api/services/vnc/status');
+    const d = await r.json();
+    const dot = document.getElementById('vnc-dot');
+    const info = document.getElementById('vnc-info');
+    const addrEl = document.getElementById('vnc-addr');
+    const startBtn = document.getElementById('vnc-start-btn');
+    const stopBtn = document.getElementById('vnc-stop-btn');
+    dot.className = 'vnc-dot ' + (d.running ? 'running' : 'stopped');
+    if (d.running && d.host) {
+      addrEl.textContent = `${d.host}:${d.port}`;
+      info.style.display = 'flex';
+      startBtn.style.display = 'none';
+      stopBtn.style.display = '';
+      stopBtn.disabled = false; stopBtn.textContent = '■ Stop Desktop';
+      statusText.textContent = 'Desktop running';
+      statusText.style.color = 'var(--green)';
+    } else {
+      info.style.display = 'none';
+      startBtn.style.display = '';
+      startBtn.disabled = false; startBtn.textContent = '▶ Start Desktop';
+      stopBtn.style.display = 'none';
+      statusText.textContent = 'Desktop stopped';
+      statusText.style.color = 'var(--muted)';
+    }
+  } catch {
+    if (statusText) { statusText.textContent = 'VNC unavailable'; statusText.style.color = 'var(--muted)'; }
+  }
+}
+
+async function vncStart() {
+  const geometry = document.getElementById('vnc-geo').value;
+  const btn = document.getElementById('vnc-start-btn');
+  btn.textContent = '…'; btn.disabled = true;
+  try {
+    const r = await fetch('/api/services/vnc/start', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({geometry})
+    });
+    if (!r.ok) throw new Error((await r.json()).detail || 'VNC start failed');
+    showToast('Desktop started — connect your VNC client', 'success');
+    await refreshVNC();
+  } catch (e) {
+    showToast('VNC: ' + e.message, 'error');
+    btn.textContent = '▶ Start Desktop'; btn.disabled = false;
+  }
+}
+
+async function vncStop() {
+  const btn = document.getElementById('vnc-stop-btn');
+  btn.textContent = '…'; btn.disabled = true;
+  try {
+    await fetch('/api/services/vnc/stop', { method: 'POST' });
+    showToast('Desktop stopped', 'info');
+    await refreshVNC();
+  } catch (e) {
+    showToast('VNC stop: ' + e.message, 'error');
+    await refreshVNC();
+  }
 }
 
 // Close modal on overlay click
