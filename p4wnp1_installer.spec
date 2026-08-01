@@ -1,12 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
 #
-# PyInstaller spec for P4wnP1 Tool Installer
+# PyInstaller spec for BakerPi Tool Installer
 #
 # Build with:
-#   cd tool_installer && pyinstaller p4wnp1_installer.spec
+#   pyinstaller p4wnp1_installer.spec --noconfirm
 #
-# Output: tool_installer/dist/P4wnP1_Installer   (Linux/macOS)
-#         tool_installer/dist/P4wnP1_Installer.exe (Windows)
+# Output: dist/P4wnP1_Installer   (Linux/macOS)
+#         dist/P4wnP1_Installer.exe (Windows)
 
 added_files = [
     ("server.py",       "."),
@@ -43,9 +43,14 @@ a = Analysis(
         "paramiko",
         "paramiko.transport",
         "cryptography",
-        "tkinter",
-        "tkinter.ttk",
-        "tkinter.messagebox",
+        # pywebview platform backends (all included so frozen binary works everywhere)
+        "webview",
+        "webview.util",
+        "webview.platforms",
+        "webview.platforms.winforms",
+        "webview.platforms.edgechromium",
+        "webview.platforms.gtk",
+        "webview.platforms.cocoa",
     ],
     hookspath=[],
     hooksconfig={},
@@ -71,6 +76,7 @@ exe = EXE(
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,
+    icon="static/favicon.ico",
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

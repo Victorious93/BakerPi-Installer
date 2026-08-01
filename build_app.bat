@@ -1,5 +1,5 @@
 @echo off
-:: Build P4wnP1 Tool Installer as a standalone Windows executable.
+:: Build BakerPi Tool Installer as a standalone Windows executable.
 :: Output: dist\P4wnP1_Installer.exe
 ::
 :: Requirements: Python 3.8+ in PATH

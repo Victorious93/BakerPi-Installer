@@ -1,11 +1,11 @@
-; Inno Setup script for P4wnP1 Tool Installer
+; Inno Setup script for BakerPi Tool Installer
 ; Build the exe first:  build_app.bat
 ; Then compile this in Inno Setup Compiler (free, https://jrsoftware.org/isinfo.php)
 
-#define AppName      "P4wnP1 Tool Installer"
+#define AppName      "BakerPi Tool Installer"
 #define AppVersion   "1.0"
-#define AppPublisher "P4wnP1 Project"
-#define AppURL       "https://github.com/Victorious93/P4wnP1_aloa"
+#define AppPublisher "BakerPi Project"
+#define AppURL       "https://github.com/Victorious93/BakerPi-Installer"
 #define AppExeName   "P4wnP1_Installer.exe"
 
 [Setup]
@@ -16,13 +16,13 @@ AppPublisher={#AppPublisher}
 AppPublisherURL={#AppURL}
 AppSupportURL={#AppURL}
 AppUpdatesURL={#AppURL}
-DefaultDirName={autopf}\P4wnP1 Tool Installer
+DefaultDirName={autopf}\BakerPi Tool Installer
 DefaultGroupName={#AppName}
 AllowNoIcons=yes
 LicenseFile=
 OutputDir=dist\installer
 OutputBaseFilename=P4wnP1_Installer_Setup
-SetupIconFile=
+SetupIconFile=static\favicon.ico
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern

@@ -1,8 +1,10 @@
 #!/bin/bash
-# Build P4wnP1 Tool Installer as a standalone executable (Linux / macOS).
+# Build BakerPi Tool Installer as a standalone executable (Linux / macOS).
 # Output: dist/P4wnP1_Installer
 #
 # Requirements: pip3 install pyinstaller (plus the app's own requirements)
+# Linux also needs the WebKit/GTK dev headers:
+#   sudo apt-get install libwebkit2gtk-4.0-dev libgtk-3-dev libglib2.0-dev
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
