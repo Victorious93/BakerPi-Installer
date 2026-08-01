@@ -110,7 +110,7 @@ def stop_server():
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("P4wnP1 Tool Installer")
+        self.title("BakerPi Tool Installer")
         self.configure(bg=BG)
         self.resizable(True, True)
         self.minsize(560, 420)
@@ -140,7 +140,7 @@ class App(tk.Tk):
                        highlightbackground=BORDER)
         hdr.grid(row=0, column=0, sticky="ew", padx=0, pady=0)
 
-        tk.Label(hdr, text="⬡  P4wnP1 Tool Installer", font=("monospace", 14, "bold"),
+        tk.Label(hdr, text="⬡  BakerPi Tool Installer", font=("monospace", 14, "bold"),
                  bg=SURFACE, fg=WHITE, pady=12, padx=16).pack(side="left")
 
         self._status_dot = tk.Label(hdr, text="●", font=("monospace", 18),

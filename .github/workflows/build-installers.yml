@@ -40,9 +40,8 @@ jobs:
           cp p4wnp1-installer.desktop AppDir/usr/share/applications/p4wnp1-installer.desktop
           cp p4wnp1-installer.desktop AppDir/
 
-          printf '\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82' \
-            > AppDir/p4wnp1-installer.png
-          cp AppDir/p4wnp1-installer.png AppDir/usr/share/icons/hicolor/256x256/apps/
+          cp static/bakerpi-logo-256.png AppDir/bakerpi-installer.png
+          cp static/bakerpi-logo-256.png AppDir/usr/share/icons/hicolor/256x256/apps/bakerpi-installer.png
 
           wget -q "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" \
             -O appimagetool && chmod +x appimagetool

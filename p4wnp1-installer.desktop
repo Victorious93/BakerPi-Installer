@@ -1,11 +1,11 @@
 [Desktop Entry]
 Version=1.0
-Name=P4wnP1 Tool Installer
+Name=BakerPi Tool Installer
 Comment=Install tools on your Pi Zero 1.3 over USB
 Exec=/opt/p4wnp1-installer/P4wnP1_Installer
-Icon=network-wireless
+Icon=bakerpi-installer
 Terminal=false
 Type=Application
 Categories=Network;Security;System;
-Keywords=p4wnp1;raspberry;pi;hid;security;
+Keywords=bakerpi;p4wnp1;raspberry;pi;hid;security;
 StartupNotify=true
