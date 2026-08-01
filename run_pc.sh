@@ -1,5 +1,5 @@
 #!/bin/bash
-# Launch P4wnP1 Tool Installer in PC/SSH mode.
+# Launch BakerPi Tool Installer in PC/SSH mode.
 # Connects to the Pi Zero via SSH over USB RNDIS (172.16.0.1) and opens
 # the web UI in your browser at http://localhost:8080.
 #
@@ -21,7 +21,7 @@ if ! python3 -c "import fastapi, uvicorn, paramiko" 2>/dev/null; then
     pip3 install -r requirements.txt --quiet
 fi
 
-echo "[*] Starting P4wnP1 Tool Installer (SSH/PC mode)..."
+echo "[*] Starting BakerPi Tool Installer (SSH/PC mode)..."
 echo "[*] Will open browser at http://localhost:8080"
 echo "[*] Press Ctrl+C to stop."
 echo ""

@@ -24,7 +24,7 @@ if ! python3 -c "import fastapi, uvicorn" 2>/dev/null; then
     pip3 install -r requirements.txt --quiet
 fi
 
-echo "[*] Starting P4wnP1 Tool Installer (on-device mode)..."
+echo "[*] Starting BakerPi Tool Installer (on-device mode)..."
 echo "[*] Access from your PC or phone at: http://172.16.0.1:8080"
 echo "[*] Press Ctrl+C to stop."
 echo ""

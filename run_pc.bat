@@ -29,7 +29,7 @@ if errorlevel 1 (
     pip install -r requirements.txt --quiet
 )
 
-echo [*] Starting P4wnP1 Tool Installer (SSH/PC mode)...
+echo [*] Starting BakerPi Tool Installer (SSH/PC mode)...
 echo [*] Will open browser at http://localhost:8080
 echo [*] Press Ctrl+C to stop.
 echo.

@@ -1,0 +1,18 @@
+{
+  "name": "BakerPi Tool Installer",
+  "short_name": "BakerPi",
+  "description": "Install security research and development tools on your Raspberry Pi Zero 1.3",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0d1117",
+  "theme_color": "#58a6ff",
+  "icons": [
+    {
+      "src": "/static/bakerpi-logo-256.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
