@@ -1,0 +1,93 @@
+name: Build Installers
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "**.py"
+      - "**.spec"
+      - "**.iss"
+      - "static/**"
+      - "tools/**"
+      - "install_scripts/**"
+      - ".github/workflows/build-installers.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-linux:
+    name: Linux Binary + AppImage
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install pyinstaller fastapi uvicorn paramiko cryptography aiohttp
+
+      - name: Build binary
+        run: pyinstaller p4wnp1_installer.spec --noconfirm
+
+      - name: Build AppImage
+        run: |
+          mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
+          cp dist/P4wnP1_Installer AppDir/usr/bin/
+          cp p4wnp1-installer.desktop AppDir/usr/share/applications/p4wnp1-installer.desktop
+          cp p4wnp1-installer.desktop AppDir/
+
+          printf '\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82' \
+            > AppDir/p4wnp1-installer.png
+          cp AppDir/p4wnp1-installer.png AppDir/usr/share/icons/hicolor/256x256/apps/
+
+          wget -q "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" \
+            -O appimagetool && chmod +x appimagetool
+          ARCH=x86_64 ./appimagetool AppDir dist/P4wnP1_Installer-x86_64.AppImage || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: |
+            dist/P4wnP1_Installer
+            dist/P4wnP1_Installer-x86_64.AppImage
+          retention-days: 30
+
+  build-windows:
+    name: Windows EXE + Installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install pyinstaller fastapi uvicorn paramiko cryptography aiohttp
+
+      - name: Build EXE
+        run: pyinstaller p4wnp1_installer.spec --noconfirm
+
+      - name: Install Inno Setup and build installer
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            $tmp = "$env:TEMP\is.exe"
+            Invoke-WebRequest -Uri "https://jrsoftware.org/download.php/is.exe" -OutFile $tmp
+            Start-Process -Wait -FilePath $tmp -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART"
+          }
+          & $iscc installer.iss
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: |
+            dist/P4wnP1_Installer.exe
+            dist/installer/P4wnP1_Installer_Setup.exe
+          retention-days: 30

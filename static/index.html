@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>P4wnP1 Tool Installer — Pi Zero 1.3</title>
+<style>
+/* ── Reset & Tokens ─────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:        #0d1117;
+  --surface:   #161b22;
+  --border:    #30363d;
+  --text:      #e6edf3;
+  --muted:     #8b949e;
+  --accent:    #58a6ff;
+  --green:     #3fb950;
+  --amber:     #d29922;
+  --red:       #f85149;
+  --mono:      'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Courier New', monospace;
+  --sans:      -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --radius:    6px;
+  --sidebar-w: 220px;
+}
+[data-theme="light"] {
+  --bg:      #f6f8fa;
+  --surface: #ffffff;
+  --border:  #d0d7de;
+  --text:    #1f2328;
+  --muted:   #57606a;
+  --accent:  #0969da;
+  --green:   #1a7f37;
+  --amber:   #9a6700;
+  --red:     #cf222e;
+}
+
+/* ── Base ───────────────────────────────────────────────────────── */
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.5; }
+a { color: var(--accent); text-decoration: none; }
+button { cursor: pointer; font: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+#app { display: flex; flex-direction: column; height: 100%; }
+
+/* Top Bar */
+#topbar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 16px; height: 52px;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  flex-shrink: 0; position: sticky; top: 0; z-index: 100;
+}
+#topbar h1 { font-size: 15px; font-weight: 600; color: var(--accent); letter-spacing: -0.2px; }
+#topbar h1 span { color: var(--muted); font-weight: 400; }
+#topbar .spacer { flex: 1; }
+#sysinfo { font-size: 12px; color: var(--muted); display: flex; gap: 14px; align-items: center; }
+#sysinfo span { display: flex; align-items: center; gap: 4px; }
+#sysinfo .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+#sysinfo .dot.warn { background: var(--amber); }
+#sysinfo .dot.error { background: var(--red); }
+#theme-btn {
+  background: none; border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--muted); padding: 4px 8px; font-size: 12px;
+}
+#theme-btn:hover { color: var(--text); border-color: var(--muted); }
+
+/* Body */
+#body { display: flex; flex: 1; min-height: 0; }
+
+/* Sidebar */
+#sidebar {
+  width: var(--sidebar-w); flex-shrink: 0;
+  background: var(--surface); border-right: 1px solid var(--border);
+  overflow-y: auto; padding: 12px 0;
+}
+.sidebar-section { padding: 4px 12px; font-size: 11px; font-weight: 600;
+  color: var(--muted); letter-spacing: 0.6px; text-transform: uppercase; margin-top: 8px; }
+.cat-btn {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 7px 16px;
+  background: none; border: none; border-radius: 0;
+  color: var(--text); font-size: 13px; text-align: left;
+  transition: background 0.1s;
+}
+.cat-btn:hover { background: rgba(88,166,255,0.06); }
+.cat-btn.active { background: rgba(88,166,255,0.12); color: var(--accent); font-weight: 500; }
+.cat-btn .cat-icon { font-size: 15px; width: 20px; text-align: center; }
+.cat-btn .cat-count {
+  margin-left: auto; background: var(--border); color: var(--muted);
+  border-radius: 10px; padding: 1px 7px; font-size: 11px; font-variant-numeric: tabular-nums;
+}
+.cat-btn.active .cat-count { background: rgba(88,166,255,0.2); color: var(--accent); }
+
+/* Main content */
+#main { flex: 1; overflow-y: auto; padding: 20px 24px; }
+
+/* Toolbar */
+#toolbar {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap;
+}
+#toolbar h2 { font-size: 17px; font-weight: 600; }
+#toolbar .subtitle { font-size: 12px; color: var(--muted); margin-left: 2px; }
+#toolbar .spacer { flex: 1; }
+#search {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--text); padding: 6px 10px; font-size: 13px; width: 200px;
+}
+#search::placeholder { color: var(--muted); }
+.btn {
+  padding: 6px 14px; border-radius: var(--radius); border: 1px solid var(--border);
+  font-size: 13px; font-weight: 500; background: var(--surface); color: var(--text);
+  transition: all 0.1s;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn.primary {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+}
+.btn.primary:hover { opacity: 0.88; }
+.btn.primary:disabled { opacity: 0.4; cursor: default; }
+.btn.danger { border-color: var(--red); color: var(--red); }
+.btn.danger:hover { background: var(--red); color: #fff; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+
+/* Tool Grid */
+#grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+
+/* Tool Card */
+.tool-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;
+  transition: border-color 0.15s;
+  position: relative;
+}
+.tool-card:hover { border-color: var(--muted); }
+.tool-card.selected { border-color: var(--accent); background: rgba(88,166,255,0.04); }
+.tool-card.installed { border-color: rgba(63,185,80,0.4); }
+
+.card-top { display: flex; align-items: flex-start; gap: 8px; }
+.card-check { width: 16px; height: 16px; margin-top: 2px; flex-shrink: 0; cursor: pointer; accent-color: var(--accent); }
+.card-info { flex: 1; min-width: 0; }
+.card-name { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-desc { font-size: 12px; color: var(--muted); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+.card-footer { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.badge {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 7px; border-radius: 99px; font-size: 11px; font-weight: 500;
+  border: 1px solid transparent;
+}
+.badge.installed { color: var(--green); border-color: rgba(63,185,80,0.4); background: rgba(63,185,80,0.08); }
+.badge.not-installed { color: var(--muted); border-color: var(--border); }
+.badge.builtin { color: var(--accent); border-color: rgba(88,166,255,0.3); background: rgba(88,166,255,0.07); }
+.tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.tag {
+  font-size: 10px; padding: 1px 6px; border-radius: 3px;
+  background: var(--bg); border: 1px solid var(--border); color: var(--muted);
+  font-family: var(--mono); letter-spacing: -0.3px;
+}
+
+.card-footer .spacer { flex: 1; }
+.install-btn {
+  padding: 4px 12px; border-radius: var(--radius); border: 1px solid var(--border);
+  font-size: 12px; font-weight: 500; background: var(--surface); color: var(--text);
+  white-space: nowrap;
+}
+.install-btn:hover:not(:disabled) { border-color: var(--green); color: var(--green); }
+.install-btn:disabled { opacity: 0.4; cursor: default; }
+.install-btn.installing { border-color: var(--amber); color: var(--amber); animation: pulse 1.2s ease infinite; }
+.update-btn { font-size: 11px; padding: 3px 10px; border-radius: 4px; border: 1px solid var(--amber); color: var(--amber); background: transparent; cursor: pointer; white-space: nowrap; transition: background 0.15s, color 0.15s; }
+.update-btn:hover { background: var(--amber); color: #000; }
+.update-btn.installing { opacity: 0.6; animation: pulse 1.2s ease infinite; cursor: default; }
+.uninstall-btn { font-size: 11px; padding: 3px 8px; border-radius: 4px; border: 1px solid transparent; color: var(--muted); background: transparent; cursor: pointer; white-space: nowrap; transition: all 0.15s; }
+.uninstall-btn:hover { border-color: var(--red); color: var(--red); }
+.uninstall-btn.installing { opacity: 0.5; animation: pulse 1.2s ease infinite; cursor: default; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+/* Toast */
+#toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.toast { padding: 10px 16px; border-radius: var(--radius); font-size: 13px; font-weight: 500; max-width: 320px; opacity: 0; transform: translateY(8px); transition: opacity 0.2s, transform 0.2s; pointer-events: auto; border: 1px solid transparent; }
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.info  { background: var(--surface); border-color: var(--border); color: var(--text); }
+.toast.error { background: rgba(248,81,73,0.12); border-color: var(--red); color: var(--red); }
+.toast.success { background: rgba(63,185,80,0.12); border-color: var(--green); color: var(--green); }
+
+/* Reboot badge */
+.badge.reboot { color: var(--amber); border-color: rgba(210,153,34,0.4); background: rgba(210,153,34,0.07); }
+
+/* Empty state */
+.empty-state { padding: 60px 20px; text-align: center; color: var(--muted); }
+.empty-state h3 { color: var(--text); margin-bottom: 8px; }
+
+/* Select bar */
+#select-bar {
+  display: none; align-items: center; gap: 10px;
+  padding: 8px 16px; background: rgba(88,166,255,0.1);
+  border: 1px solid rgba(88,166,255,0.3); border-radius: var(--radius);
+  margin-bottom: 14px;
+}
+#select-bar.visible { display: flex; }
+#select-bar .sel-count { font-size: 13px; color: var(--accent); font-weight: 500; }
+#select-bar .spacer { flex: 1; }
+
+/* ── Modal ──────────────────────────────────────────────────────── */
+#modal-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+  z-index: 1000; align-items: center; justify-content: center; padding: 20px;
+}
+#modal-overlay.open { display: flex; }
+#modal {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  width: 100%; max-width: 720px; max-height: 80vh;
+  display: flex; flex-direction: column;
+}
+#modal-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+#modal-header h3 { font-size: 14px; font-weight: 600; flex: 1; }
+#modal-close { background: none; border: none; color: var(--muted); font-size: 20px; line-height: 1; padding: 2px 6px; border-radius: 4px; }
+#modal-close:hover { color: var(--text); background: var(--border); }
+#terminal {
+  flex: 1; overflow-y: auto; padding: 14px 18px;
+  font-family: var(--mono); font-size: 12px; line-height: 1.6;
+  white-space: pre-wrap; word-break: break-all; background: #010409; color: #c9d1d9;
+  min-height: 200px;
+}
+.terminal-line.success { color: #3fb950; }
+.terminal-line.error   { color: #f85149; }
+.terminal-line.info    { color: #79c0ff; }
+.terminal-line.heading { color: #e3b341; font-weight: bold; }
+#modal-footer {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 18px; border-top: 1px solid var(--border); flex-shrink: 0;
+}
+#modal-status { font-size: 12px; color: var(--muted); flex: 1; }
+.spinner {
+  display: inline-block; width: 12px; height: 12px;
+  border: 2px solid var(--border); border-top-color: var(--amber);
+  border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 4px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── SSH Connect Panel ──────────────────────────────────────────── */
+#ssh-panel {
+  display: none; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px 18px; margin-bottom: 16px;
+}
+#ssh-panel.visible { display: block; }
+#ssh-panel h4 { font-size: 13px; font-weight: 600; margin-bottom: 12px; }
+.form-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.form-field { display: flex; flex-direction: column; gap: 4px; }
+.form-field label { font-size: 11px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.4px; }
+.form-field input {
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--text); padding: 6px 10px; font-size: 13px; min-width: 120px;
+}
+.form-field input:focus { border-color: var(--accent); outline: none; }
+#ssh-status { font-size: 12px; margin-top: 8px; }
+#ssh-status.ok { color: var(--green); }
+#ssh-status.err { color: var(--red); }
+
+/* ── Responsive ─────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  :root { --sidebar-w: 56px; }
+  .cat-btn .cat-label, .cat-btn .cat-count, .sidebar-section { display: none; }
+  .cat-btn { justify-content: center; padding: 10px; }
+  #main { padding: 14px 12px; }
+  #grid { grid-template-columns: 1fr; }
+  #sysinfo .sys-detail { display: none; }
+  #search { width: 140px; }
+  #topbar h1 span { display: none; }
+}
+@media (max-width: 480px) {
+  :root { --sidebar-w: 0px; }
+  #sidebar { display: none; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- Top Bar -->
+  <header id="topbar">
+    <h1>P4wnP1 <span>Tool Installer</span></h1>
+    <div id="sysinfo">
+      <span><span id="conn-dot" class="dot error"></span><span id="conn-label" class="sys-detail">Disconnected</span></span>
+      <span id="sys-host" class="sys-detail"></span>
+      <span id="sys-mem" class="sys-detail"></span>
+      <span id="sys-disk" class="sys-detail"></span>
+      <span id="sys-temp" class="sys-detail"></span>
+    </div>
+    <div class="spacer"></div>
+    <button id="ssh-toggle-btn" class="btn btn-sm" onclick="toggleSSHPanel()">⚙ SSH</button>
+    <button id="theme-btn" onclick="toggleTheme()">☀ Light</button>
+  </header>
+
+  <div id="body">
+    <!-- Sidebar -->
+    <nav id="sidebar">
+      <div class="sidebar-section">Categories</div>
+      <button class="cat-btn active" data-cat="all" onclick="selectCat('all', this)">
+        <span class="cat-icon">🗂</span>
+        <span class="cat-label">All Tools</span>
+        <span class="cat-count" id="count-all">—</span>
+      </button>
+      <div id="cat-list"></div>
+    </nav>
+
+    <!-- Main -->
+    <main id="main">
+      <!-- SSH panel -->
+      <div id="ssh-panel">
+        <h4>Connect to Pi Zero via SSH (PC Mode)</h4>
+        <div class="form-row">
+          <div class="form-field"><label>Host</label><input id="ssh-host" value="172.16.0.1"></div>
+          <div class="form-field"><label>User</label><input id="ssh-user" value="root"></div>
+          <div class="form-field"><label>Port</label><input id="ssh-port" value="22" type="number"></div>
+          <div class="form-field"><label>Password</label><input id="ssh-pass" type="password" placeholder="or use key file"></div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn primary btn-sm" onclick="connectSSH()">Connect</button>
+          <button class="btn btn-sm" onclick="toggleSSHPanel()">Cancel</button>
+          <span id="ssh-status"></span>
+        </div>
+      </div>
+
+      <!-- Toolbar -->
+      <div id="toolbar">
+        <div>
+          <h2 id="cat-title">All Tools</h2>
+          <div class="subtitle" id="cat-desc">Select tools to install on your Pi Zero 1.3</div>
+        </div>
+        <div class="spacer"></div>
+        <input id="search" type="search" placeholder="Search tools…" oninput="filterTools()">
+        <button class="btn" onclick="refreshStatuses()">↻ Refresh</button>
+        <button class="btn" id="update-all-btn" onclick="updateAllInstalled()" title="Update all installed tools">↑ Update All</button>
+      </div>
+
+      <!-- Select bar -->
+      <div id="select-bar">
+        <span class="sel-count" id="sel-count">0 selected</span>
+        <div class="spacer"></div>
+        <button class="btn btn-sm" onclick="clearSelection()">Clear</button>
+        <button class="btn btn-sm danger" id="uninstall-selected-btn" onclick="uninstallSelected()" title="Remove selected tools">✕ Remove Selected</button>
+        <button class="btn btn-sm" id="update-selected-btn" onclick="updateSelected()" title="Update selected tools">↑ Update Selected</button>
+        <button class="btn primary btn-sm" id="install-selected-btn" onclick="installSelected()">
+          ⬇ Install Selected
+        </button>
+      </div>
+
+      <!-- Grid -->
+      <div id="grid"></div>
+    </main>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<!-- Modal -->
+<div id="modal-overlay" role="dialog" aria-modal="true">
+  <div id="modal">
+    <div id="modal-header">
+      <h3 id="modal-title">Installing…</h3>
+      <button id="modal-close" onclick="closeModal()" aria-label="Close">×</button>
+    </div>
+    <div id="terminal" aria-label="Installation output"></div>
+    <div id="modal-footer">
+      <span id="modal-status">Waiting…</span>
+      <div class="spacer"></div>
+      <button class="btn btn-sm" onclick="closeModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let catalog = null;          // raw catalog JSON
+let toolsData = {};          // tool_id → tool with install status
+let currentCat = 'all';
+let selectedIds = new Set();
+let activeJobId = null;
+let sseSource = null;
+
+// ── Bootstrap ────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+  await loadCatalog();
+  await refreshStatuses();
+  await refreshSystem();
+  setInterval(refreshSystem, 15000);
+  initTheme();
+});
+
+async function loadCatalog() {
+  try {
+    const r = await fetch('/api/catalog');
+    catalog = await r.json();
+    buildSidebar(catalog);
+  } catch (e) {
+    showToast('Failed to load catalog: ' + e.message, 'error');
+  }
+}
+
+// ── Sidebar ──────────────────────────────────────────────────────────────────
+const CAT_ICONS = {
+  hid_usb: '⌨', network: '🌐', security_research: '🔍',
+  wifi_wireless: '📡', gpio_sensors: '🔌', iot_protocols: '📶',
+  media: '🎵', dev_tools: '💻', monitoring: '📊',
+  sdr: '📻', home_automation: '🏠', infrastructure: '🔧'
+};
+
+function buildSidebar(cat) {
+  const list = document.getElementById('cat-list');
+  list.innerHTML = '';
+  cat.categories.forEach(c => {
+    const btn = document.createElement('button');
+    btn.className = 'cat-btn';
+    btn.dataset.cat = c.id;
+    btn.onclick = () => selectCat(c.id, btn);
+    btn.innerHTML = `
+      <span class="cat-icon">${CAT_ICONS[c.id] || '🛠'}</span>
+      <span class="cat-label">${c.name}</span>
+      <span class="cat-count" id="count-${c.id}">—</span>`;
+    list.appendChild(btn);
+  });
+}
+
+function selectCat(catId, btn) {
+  currentCat = catId;
+  document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const catDef = catalog?.categories.find(c => c.id === catId);
+  document.getElementById('cat-title').textContent = catId === 'all' ? 'All Tools' : (catDef?.name || catId);
+  document.getElementById('cat-desc').textContent = catId === 'all' ? 'All available capabilities for Pi Zero 1.3' : (catDef?.description || '');
+  document.getElementById('search').value = '';
+  renderGrid();
+}
+
+// ── Tool Status Refresh ───────────────────────────────────────────────────────
+async function refreshStatuses() {
+  try {
+    const r = await fetch('/api/tools');
+    const tools = await r.json();
+    tools.forEach(t => { toolsData[t.id] = t; });
+    updateCounts();
+    renderGrid();
+  } catch (e) {
+    // Silent on mobile — may not have connection
+  }
+}
+
+function updateCounts() {
+  const allTools = Object.values(toolsData);
+  document.getElementById('count-all').textContent = allTools.length;
+
+  if (!catalog) return;
+  catalog.categories.forEach(c => {
+    const el = document.getElementById('count-' + c.id);
+    if (el) {
+      const catTools = allTools.filter(t => t.category_id === c.id);
+      const installed = catTools.filter(t => t.installed || t.builtin).length;
+      el.textContent = installed + '/' + catTools.length;
+    }
+  });
+}
+
+// ── Grid Rendering ────────────────────────────────────────────────────────────
+function filterTools() { renderGrid(); }
+
+function visibleTools() {
+  const search = document.getElementById('search').value.toLowerCase().trim();
+  return Object.values(toolsData).filter(t => {
+    const catMatch = currentCat === 'all' || t.category_id === currentCat;
+    const textMatch = !search ||
+      t.name.toLowerCase().includes(search) ||
+      t.description.toLowerCase().includes(search) ||
+      (t.tags || []).some(g => g.includes(search));
+    return catMatch && textMatch;
+  });
+}
+
+function renderGrid() {
+  const grid = document.getElementById('grid');
+  const tools = visibleTools();
+
+  if (!tools.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
+      <h3>No tools found</h3>
+      <p>Try a different category or search term.</p>
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = tools.map(t => toolCard(t)).join('');
+}
+
+function toolCard(t) {
+  const isSelected = selectedIds.has(t.id);
+  const classes = ['tool-card', isSelected ? 'selected' : '', t.installed ? 'installed' : ''].filter(Boolean).join(' ');
+  const badge = t.builtin
+    ? `<span class="badge builtin">● Built-in</span>`
+    : t.installed
+      ? `<span class="badge installed">✓ Installed</span>`
+      : `<span class="badge not-installed">○ Not installed</span>`;
+  const rebootBadge = t.requires_reboot && !t.installed ? `<span class="badge reboot">↺ Reboot needed</span>` : '';
+  const tags = (t.tags || []).slice(0, 4).map(g => `<span class="tag">${g}</span>`).join('');
+
+  const installBtnLabel = t.builtin ? 'Built-in' : t.installed ? '↺ Reinstall' : '⬇ Install';
+  const installBtnDisabled = t.builtin ? 'disabled' : '';
+  const updateBtn = (!t.builtin && t.installed)
+    ? `<button class="update-btn btn-sm" id="ubtn-${t.id}" onclick="updateOne('${t.id}')" title="Update to latest version">↑ Update</button>`
+    : '';
+  const uninstallBtn = (!t.builtin && t.installed)
+    ? `<button class="uninstall-btn" id="xbtn-${t.id}" onclick="uninstallOne('${t.id}')" title="Remove this tool">✕ Remove</button>`
+    : '';
+
+  return `<div class="${classes}" id="card-${t.id}">
+    <div class="card-top">
+      ${!t.builtin ? `<input type="checkbox" class="card-check" ${isSelected ? 'checked' : ''} onchange="toggleSelect('${t.id}', this.checked)" title="Select for batch install/update">` : '<span style="width:16px;flex-shrink:0"></span>'}
+      <div class="card-info">
+        <div class="card-name" title="${escHtml(t.name)}">${escHtml(t.name)}</div>
+        <div class="card-desc">${escHtml(t.description)}</div>
+      </div>
+    </div>
+    <div class="card-footer">
+      ${badge}${rebootBadge}
+      <div class="spacer"></div>
+      ${tags.length ? `<div class="tags">${tags}</div>` : ''}
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:4px">
+      ${uninstallBtn}
+      ${updateBtn}
+      <button class="install-btn btn-sm" id="ibtn-${t.id}" ${installBtnDisabled} onclick="installOne('${t.id}')">${installBtnLabel}</button>
+    </div>
+  </div>`;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Selection ────────────────────────────────────────────────────────────────
+function toggleSelect(toolId, checked) {
+  if (checked) selectedIds.add(toolId);
+  else selectedIds.delete(toolId);
+  updateSelectBar();
+  const card = document.getElementById('card-' + toolId);
+  if (card) card.classList.toggle('selected', checked);
+}
+
+function clearSelection() {
+  selectedIds.clear();
+  document.querySelectorAll('.card-check').forEach(el => el.checked = false);
+  document.querySelectorAll('.tool-card').forEach(el => el.classList.remove('selected'));
+  updateSelectBar();
+}
+
+function updateSelectBar() {
+  const bar = document.getElementById('select-bar');
+  const count = selectedIds.size;
+  bar.classList.toggle('visible', count > 0);
+  document.getElementById('sel-count').textContent = count + ' selected';
+}
+
+// ── Install / Update ──────────────────────────────────────────────────────────
+async function installOne(toolId) {
+  await startJob([toolId], 'install');
+}
+
+async function installSelected() {
+  if (!selectedIds.size) return;
+  await startJob([...selectedIds], 'install');
+}
+
+async function updateOne(toolId) {
+  await startJob([toolId], 'update');
+}
+
+async function updateSelected() {
+  if (!selectedIds.size) return;
+  await startJob([...selectedIds], 'update');
+}
+
+async function uninstallSelected() {
+  const ids = [...selectedIds].filter(id => toolsData[id] && !toolsData[id].builtin && toolsData[id].installed);
+  if (!ids.length) { showToast('No installed (non-built-in) tools selected.', 'info'); return; }
+  const names = ids.map(id => toolsData[id].name).join(', ');
+  if (!confirm(`Remove ${ids.length} tool${ids.length > 1 ? 's' : ''}?\n\n${names}\n\nThis cannot be undone.`)) return;
+  await startJob(ids, 'uninstall');
+}
+
+async function updateAllInstalled() {
+  openModal('Updating all installed tools…');
+  setModalStatus('Fetching installed list…', true);
+  try {
+    const r = await fetch('/api/update-all', { method: 'POST' });
+    if (!r.ok) throw new Error(await r.text());
+    const { job_id, tool_ids } = await r.json();
+    activeJobId = job_id;
+    streamJob(job_id, tool_ids || [], 'update');
+  } catch (e) {
+    appendTerminal('[ERROR] ' + e.message + '\n', 'error');
+    setModalStatus('Error: ' + e.message, false);
+  }
+}
+
+async function uninstallOne(toolId) {
+  const tool = toolsData[toolId];
+  if (!tool) return;
+  if (!confirm(`Remove "${tool.name}"?\n\nThis may purge apt packages and configuration. This action cannot be undone.`)) return;
+  await startJob([toolId], 'uninstall');
+}
+
+async function startJob(toolIds, action) {
+  const verb = action === 'update' ? 'Updating' : action === 'uninstall' ? 'Removing' : 'Installing';
+  openModal(verb + ' ' + toolIds.length + ' tool' + (toolIds.length > 1 ? 's' : '') + '…');
+  setModalStatus('Starting…', true);
+
+  toolIds.forEach(id => {
+    const btnEl = action === 'uninstall'
+      ? document.getElementById('xbtn-' + id)
+      : action === 'update'
+        ? document.getElementById('ubtn-' + id)
+        : document.getElementById('ibtn-' + id);
+    if (btnEl) { btnEl.textContent = '…'; btnEl.classList.add('installing'); btnEl.disabled = true; }
+  });
+
+  try {
+    const endpoint = action === 'update' ? '/api/update' : action === 'uninstall' ? '/api/uninstall' : '/api/install';
+    const r = await fetch(endpoint, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({tool_ids: toolIds})
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const {job_id} = await r.json();
+    activeJobId = job_id;
+    streamJob(job_id, toolIds, action);
+  } catch (e) {
+    appendTerminal('[ERROR] ' + e.message + '\n', 'error');
+    setModalStatus('Error: ' + e.message, false);
+    toolIds.forEach(id => resetBtn(id, action));
+  }
+}
+
+function streamJob(jobId, toolIds, action) {
+  const term = document.getElementById('terminal');
+  term.innerHTML = '';
+
+  if (sseSource) sseSource.close();
+  sseSource = new EventSource('/api/jobs/' + jobId + '/stream');
+
+  sseSource.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+    if (data.done) {
+      sseSource.close();
+      const doneMsg = action === 'update' ? 'Update complete.' : action === 'uninstall' ? 'Removal complete.' : 'Installation complete.';
+      setModalStatus(doneMsg, false);
+      toolIds.forEach(id => resetBtn(id, action));
+      clearSelection();
+      setTimeout(refreshStatuses, 1500);
+      return;
+    }
+    if (data.line) appendTerminal(data.line);
+  };
+
+  sseSource.onerror = () => {
+    sseSource.close();
+    setModalStatus('Stream ended.', false);
+    toolIds.forEach(id => resetBtn(id, action));
+    setTimeout(refreshStatuses, 2000);
+  };
+}
+
+function appendTerminal(text, cls) {
+  const term = document.getElementById('terminal');
+  const span = document.createElement('span');
+  if (cls) span.className = 'terminal-line ' + cls;
+  // Color based on content
+  else if (/\[ERROR\]/.test(text)) span.className = 'terminal-line error';
+  else if (/\[DONE\]|Done\.|installed/.test(text)) span.className = 'terminal-line success';
+  else if (/^=+$|^Installing:|^Updating:|^\$/.test(text.trim())) span.className = 'terminal-line heading';
+  span.textContent = text;
+  term.appendChild(span);
+  term.scrollTop = term.scrollHeight;
+}
+
+function resetBtn(toolId, action) {
+  if (action === 'uninstall') {
+    const btn = document.getElementById('xbtn-' + toolId);
+    if (btn) { btn.classList.remove('installing'); btn.disabled = false; btn.textContent = '✕ Remove'; }
+    return;
+  }
+  const btnId = action === 'update' ? 'ubtn-' : 'ibtn-';
+  const btn = document.getElementById(btnId + toolId);
+  if (btn) {
+    btn.classList.remove('installing');
+    btn.disabled = false;
+    btn.textContent = action === 'update' ? '↑ Update' : '↺ Reinstall';
+  }
+}
+
+// ── Modal ────────────────────────────────────────────────────────────────────
+function openModal(title) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('terminal').innerHTML = '';
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal() {
+  if (sseSource) { sseSource.close(); sseSource = null; }
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+function setModalStatus(msg, loading) {
+  const el = document.getElementById('modal-status');
+  el.innerHTML = loading ? `<span class="spinner"></span>${escHtml(msg)}` : escHtml(msg);
+}
+
+// ── System Info ───────────────────────────────────────────────────────────────
+async function refreshSystem() {
+  try {
+    const r = await fetch('/api/system');
+    const d = await r.json();
+    if (d.error) {
+      setConnected(false);
+      return;
+    }
+    setConnected(true);
+    document.getElementById('sys-host').textContent = d.hostname || '';
+    document.getElementById('sys-mem').textContent = d.memory ? '💾 ' + d.memory : '';
+    document.getElementById('sys-disk').textContent = d.disk ? '💿 ' + d.disk : '';
+    document.getElementById('sys-temp').textContent = d.temp ? '🌡 ' + d.temp : '';
+    document.getElementById('conn-label').textContent = d.mode === 'local' ? 'Local' : 'SSH';
+  } catch {
+    setConnected(false);
+  }
+}
+
+function setConnected(ok) {
+  const dot = document.getElementById('conn-dot');
+  const label = document.getElementById('conn-label');
+  dot.className = 'dot ' + (ok ? '' : 'error');
+  if (!ok) label.textContent = 'Disconnected';
+}
+
+// ── SSH Panel ────────────────────────────────────────────────────────────────
+function toggleSSHPanel() {
+  document.getElementById('ssh-panel').classList.toggle('visible');
+}
+
+async function connectSSH() {
+  const body = {
+    host: document.getElementById('ssh-host').value,
+    user: document.getElementById('ssh-user').value,
+    port: parseInt(document.getElementById('ssh-port').value) || 22,
+    password: document.getElementById('ssh-pass').value || null,
+  };
+  const status = document.getElementById('ssh-status');
+  status.className = '';
+  status.textContent = 'Connecting…';
+  try {
+    const r = await fetch('/api/ssh/connect', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error((await r.json()).detail);
+    status.className = 'ok';
+    status.textContent = '✓ Connected to ' + body.host;
+    setTimeout(() => document.getElementById('ssh-panel').classList.remove('visible'), 1500);
+    await refreshSystem();
+  } catch (e) {
+    status.className = 'err';
+    status.textContent = '✗ ' + e.message;
+  }
+}
+
+// ── Theme ────────────────────────────────────────────────────────────────────
+function initTheme() {
+  const saved = localStorage.getItem('theme');
+  const theme = saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  applyTheme(theme);
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme');
+  applyTheme(current === 'dark' ? 'light' : 'dark');
+}
+
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  localStorage.setItem('theme', t);
+  document.getElementById('theme-btn').textContent = t === 'dark' ? '☀ Light' : '🌙 Dark';
+}
+
+// ── Toast ────────────────────────────────────────────────────────────────────
+function showToast(msg, type = 'info') {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = msg;
+  container.appendChild(toast);
+  requestAnimationFrame(() => requestAnimationFrame(() => toast.classList.add('show')));
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 250);
+  }, 3500);
+}
+
+// Close modal on overlay click
+document.getElementById('modal-overlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+// Keyboard close
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+</script>
+</body>
+</html>

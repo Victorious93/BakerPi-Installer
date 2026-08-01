@@ -1,0 +1,1034 @@
+{
+  "version": "1.0",
+  "platform": "Pi Zero 1.3",
+  "categories": [
+    {
+      "id": "hid_usb",
+      "name": "HID & USB Emulation",
+      "description": "Core P4wnP1 keyboard, mouse, and composite USB device capabilities",
+      "icon": "usb",
+      "tools": [
+        {
+          "id": "p4wnp1_core",
+          "name": "P4wnP1 Core Service",
+          "description": "Main P4wnP1 ALOA daemon: HID keyboard/mouse emulation, DuckyScript engine, USB gadget management, web UI on port 8000",
+          "packages": [],
+          "check_cmd": "which P4wnP1_service",
+          "check_pkg": "",
+          "install_script": "",
+          "builtin": true,
+          "tags": ["hid", "keyboard", "mouse", "duckyscript", "core"],
+          "requires_reboot": false
+        },
+        {
+          "id": "duckyscript_samples",
+          "name": "DuckyScript Sample Library",
+          "description": "Extended library of DuckyScript payloads for Windows, Linux, and macOS. Includes helpers for PowerShell, bash injection, and mouse automation.",
+          "packages": [],
+          "check_cmd": "ls /usr/local/P4wnP1/HIDScripts/windows_powershell_admin.js",
+          "check_pkg": "",
+          "install_script": "hid_tools.sh",
+          "builtin": false,
+          "tags": ["hid", "duckyscript", "payload"],
+          "requires_reboot": false
+        },
+        {
+          "id": "usb_image_tools",
+          "name": "USB Mass Storage Image Tools",
+          "description": "Tools for creating and managing USB mass storage images: genisoimage (ISO creation), mkdosfs (FAT formatting), losetup utilities",
+          "packages": ["genisoimage", "dosfstools", "util-linux"],
+          "check_cmd": "which genisoimage",
+          "check_pkg": "genisoimage",
+          "install_script": "hid_tools.sh",
+          "builtin": false,
+          "tags": ["usb", "storage", "iso"],
+          "requires_reboot": false
+        }
+      ]
+    },
+    {
+      "id": "network",
+      "name": "Network Services",
+      "description": "DHCP, DNS, NAT, proxying, and network infrastructure tools",
+      "icon": "network",
+      "tools": [
+        {
+          "id": "dnsmasq",
+          "name": "dnsmasq (DHCP + DNS Server)",
+          "description": "Lightweight DHCP and DNS server. Powers P4wnP1's USB network interface. Supports DNS spoofing, custom leases, and DNS sinkholing.",
+          "packages": ["dnsmasq"],
+          "check_cmd": "which dnsmasq",
+          "check_pkg": "dnsmasq",
+          "install_script": "network_tools.sh",
+          "builtin": false,
+          "tags": ["dhcp", "dns", "server"],
+          "requires_reboot": false
+        },
+        {
+          "id": "hostapd",
+          "name": "hostapd (WiFi AP)",
+          "description": "IEEE 802.11 AP and authentication server. Creates WiFi access points when a compatible USB WiFi adapter is connected. Required for Evil Twin attacks.",
+          "packages": ["hostapd"],
+          "check_cmd": "which hostapd",
+          "check_pkg": "hostapd",
+          "install_script": "network_tools.sh",
+          "builtin": false,
+          "tags": ["wifi", "ap", "wireless"],
+          "requires_reboot": false
+        },
+        {
+          "id": "iodine",
+          "name": "iodine (DNS Tunneling)",
+          "description": "Tunnels IPv4 data through DNS queries. Enables network connectivity through firewalls that only allow DNS traffic.",
+          "packages": ["iodine"],
+          "check_cmd": "which iodine",
+          "check_pkg": "iodine",
+          "install_script": "network_tools.sh",
+          "builtin": false,
+          "tags": ["dns", "tunnel", "exfil"],
+          "requires_reboot": false
+        },
+        {
+          "id": "iw_wireless",
+          "name": "iw + wireless-tools",
+          "description": "Linux wireless configuration tools: iw (nl80211), iwconfig, iwlist, iwpriv. Required for USB WiFi adapter management and monitor mode.",
+          "packages": ["iw", "wireless-tools"],
+          "check_cmd": "which iw",
+          "check_pkg": "iw",
+          "install_script": "network_tools.sh",
+          "builtin": false,
+          "tags": ["wifi", "wireless", "tools"],
+          "requires_reboot": false
+        },
+        {
+          "id": "openvpn",
+          "name": "OpenVPN",
+          "description": "Full-featured SSL/TLS VPN. Create encrypted tunnels from the Pi Zero back to attacker infrastructure or home network.",
+          "packages": ["openvpn"],
+          "check_cmd": "which openvpn",
+          "check_pkg": "openvpn",
+          "install_script": "network_tools.sh",
+          "builtin": false,
+          "tags": ["vpn", "tunnel", "encryption"],
+          "requires_reboot": false
+        },
+        {
+          "id": "wireguard",
+          "name": "WireGuard VPN",
+          "description": "Modern, fast, and lightweight VPN. Lower CPU overhead than OpenVPN — ideal for the Pi Zero's limited resources. Useful for persistent C2 tunnels.",
+          "packages": ["wireguard", "wireguard-tools"],
+          "check_cmd": "which wg",
+          "check_pkg": "wireguard",
+          "install_script": "network_tools.sh",
+          "builtin": false,
+          "tags": ["vpn", "tunnel", "encryption"],
+          "requires_reboot": true
+        },
+        {
+          "id": "tcpdump",
+          "name": "tcpdump",
+          "description": "Command-line network packet analyzer. Captures and displays network traffic in real time. Essential for network analysis and debugging.",
+          "packages": ["tcpdump"],
+          "check_cmd": "which tcpdump",
+          "check_pkg": "tcpdump",
+          "install_script": "network_tools.sh",
+          "builtin": false,
+          "tags": ["capture", "analysis", "network"],
+          "requires_reboot": false
+        },
+        {
+          "id": "wireshark_cli",
+          "name": "tshark (Wireshark CLI)",
+          "description": "Terminal version of Wireshark for deep packet inspection and protocol analysis. Supports hundreds of dissectors and filtering expressions.",
+          "packages": ["tshark"],
+          "check_cmd": "which tshark",
+          "check_pkg": "tshark",
+          "install_script": "network_tools.sh",
+          "builtin": false,
+          "tags": ["capture", "analysis", "wireshark"],
+          "requires_reboot": false
+        },
+        {
+          "id": "nginx",
+          "name": "nginx (Web Server / Reverse Proxy)",
+          "description": "High-performance web server and reverse proxy. Host phishing pages, serve payloads, or proxy HTTPS traffic for MITM attacks.",
+          "packages": ["nginx"],
+          "check_cmd": "which nginx",
+          "check_pkg": "nginx",
+          "install_script": "network_tools.sh",
+          "builtin": false,
+          "tags": ["web", "server", "proxy"],
+          "requires_reboot": false
+        },
+        {
+          "id": "sslsplit",
+          "name": "SSLsplit (HTTPS Interception)",
+          "description": "Transparent SSL/TLS interception proxy. Decrypts HTTPS traffic for inspection by acting as a MITM. Requires CA cert installation on targets.",
+          "packages": ["sslsplit"],
+          "check_cmd": "which sslsplit",
+          "check_pkg": "sslsplit",
+          "install_script": "network_tools.sh",
+          "builtin": false,
+          "tags": ["ssl", "tls", "mitm", "https"],
+          "requires_reboot": false
+        },
+        {
+          "id": "responder",
+          "name": "Responder (LLMNR/NBNS Poisoning)",
+          "description": "LLMNR, NBT-NS, and MDNS poisoner for Windows credential capture. Responds to name resolution requests and captures NTLMv1/v2 hashes.",
+          "packages": ["python3", "python3-pip"],
+          "check_cmd": "which responder",
+          "check_pkg": "",
+          "install_script": "network_tools.sh",
+          "uninstall_cmd": "rm -rf /opt/Responder && rm -f /usr/local/bin/responder",
+          "builtin": false,
+          "tags": ["llmnr", "nbns", "credential", "windows"],
+          "requires_reboot": false
+        },
+        {
+          "id": "iptables_nftables",
+          "name": "nftables / iptables",
+          "description": "Linux firewall and NAT framework. Configure traffic routing, NAT for internet sharing, port forwarding, and packet filtering rules.",
+          "packages": ["nftables", "iptables"],
+          "check_cmd": "which nft",
+          "check_pkg": "nftables",
+          "install_script": "network_tools.sh",
+          "builtin": false,
+          "tags": ["firewall", "nat", "routing"],
+          "requires_reboot": false
+        },
+        {
+          "id": "autossh",
+          "name": "autossh (Persistent SSH Tunnels)",
+          "description": "Automatically restarts SSH sessions and tunnels when they drop. Useful for maintaining reliable reverse shells or persistent port forwards.",
+          "packages": ["autossh"],
+          "check_cmd": "which autossh",
+          "check_pkg": "autossh",
+          "install_script": "network_tools.sh",
+          "builtin": false,
+          "tags": ["ssh", "tunnel", "persistence"],
+          "requires_reboot": false
+        }
+      ]
+    },
+    {
+      "id": "security_research",
+      "name": "Security Research",
+      "description": "Authorized penetration testing and vulnerability assessment tools",
+      "icon": "security",
+      "tools": [
+        {
+          "id": "nmap",
+          "name": "nmap (Network Scanner)",
+          "description": "Industry-standard network discovery and security auditing tool. Port scanning, service version detection, OS fingerprinting, and NSE scripting.",
+          "packages": ["nmap"],
+          "check_cmd": "which nmap",
+          "check_pkg": "nmap",
+          "install_script": "security_tools.sh",
+          "builtin": false,
+          "tags": ["scanning", "discovery", "recon"],
+          "requires_reboot": false
+        },
+        {
+          "id": "masscan",
+          "name": "masscan (Fast Port Scanner)",
+          "description": "Internet-scale port scanner. Faster than nmap for large IP ranges. Useful for quickly identifying open services across a network.",
+          "packages": ["masscan"],
+          "check_cmd": "which masscan",
+          "check_pkg": "masscan",
+          "install_script": "security_tools.sh",
+          "builtin": false,
+          "tags": ["scanning", "ports", "fast"],
+          "requires_reboot": false
+        },
+        {
+          "id": "nikto",
+          "name": "nikto (Web Vulnerability Scanner)",
+          "description": "Open-source web server scanner. Tests for dangerous files, outdated server software, and common vulnerabilities including XSS, SQLi indicators.",
+          "packages": ["nikto"],
+          "check_cmd": "which nikto",
+          "check_pkg": "nikto",
+          "install_script": "security_tools.sh",
+          "builtin": false,
+          "tags": ["web", "scanner", "vulnerability"],
+          "requires_reboot": false
+        },
+        {
+          "id": "sqlmap",
+          "name": "sqlmap (SQL Injection Testing)",
+          "description": "Automated SQL injection detection and exploitation tool. Tests for SQLi vulnerabilities and can enumerate databases, extract data, or execute commands.",
+          "packages": ["sqlmap"],
+          "check_cmd": "which sqlmap",
+          "check_pkg": "sqlmap",
+          "install_script": "security_tools.sh",
+          "builtin": false,
+          "tags": ["sql", "injection", "web"],
+          "requires_reboot": false
+        },
+        {
+          "id": "hydra",
+          "name": "Hydra (Brute Force Tool)",
+          "description": "Multi-protocol login cracker. Tests SSH, FTP, HTTP, SMB, and 50+ other protocols against wordlists. For authorized credential testing.",
+          "packages": ["hydra"],
+          "check_cmd": "which hydra",
+          "check_pkg": "hydra",
+          "install_script": "security_tools.sh",
+          "builtin": false,
+          "tags": ["brute-force", "credentials", "auth"],
+          "requires_reboot": false
+        },
+        {
+          "id": "john",
+          "name": "John the Ripper (Password Cracker)",
+          "description": "Fast password cracker supporting hundreds of hash types. Includes wordlist attacks, rules-based mutation, and incremental modes.",
+          "packages": ["john"],
+          "check_cmd": "which john",
+          "check_pkg": "john",
+          "install_script": "security_tools.sh",
+          "builtin": false,
+          "tags": ["password", "cracking", "hashes"],
+          "requires_reboot": false
+        },
+        {
+          "id": "hashcat",
+          "name": "hashcat (GPU/CPU Hash Cracker)",
+          "description": "Advanced password recovery using CPU. Supports MD5, SHA-1, bcrypt, WPA2, NTLM, and thousands of other algorithms.",
+          "packages": ["hashcat"],
+          "check_cmd": "which hashcat",
+          "check_pkg": "hashcat",
+          "install_script": "security_tools.sh",
+          "builtin": false,
+          "tags": ["password", "cracking", "hashes"],
+          "requires_reboot": false
+        },
+        {
+          "id": "metasploit",
+          "name": "Metasploit Framework",
+          "description": "Comprehensive penetration testing framework with exploit modules, post-exploitation tools, and payload generation. Requires ~1.5GB disk space.",
+          "packages": [],
+          "check_cmd": "which msfconsole",
+          "check_pkg": "",
+          "install_script": "security_tools.sh",
+          "uninstall_cmd": "rm -rf /opt/metasploit-framework && rm -f /usr/local/bin/msfconsole /usr/local/bin/msfvenom",
+          "builtin": false,
+          "tags": ["exploit", "framework", "post-exploit"],
+          "requires_reboot": false
+        },
+        {
+          "id": "impacket",
+          "name": "Impacket (Windows Protocol Tools)",
+          "description": "Python library for Windows protocols: SMB relay, Kerberoasting, Pass-the-Hash, NTLM capture, Active Directory enumeration.",
+          "packages": ["python3-impacket"],
+          "check_cmd": "python3 -c 'import impacket'",
+          "check_pkg": "python3-impacket",
+          "install_script": "security_tools.sh",
+          "uninstall_cmd": "pip3 uninstall -y impacket 2>/dev/null; apt-get remove -y python3-impacket 2>/dev/null; true",
+          "builtin": false,
+          "tags": ["windows", "smb", "kerberos", "ad"],
+          "requires_reboot": false
+        },
+        {
+          "id": "netcat",
+          "name": "netcat / ncat",
+          "description": "The TCP/IP Swiss Army knife. Create listeners for reverse shells, port forward, banner grab, and transfer files over TCP/UDP.",
+          "packages": ["netcat-openbsd", "ncat"],
+          "check_cmd": "which nc",
+          "check_pkg": "netcat-openbsd",
+          "install_script": "security_tools.sh",
+          "builtin": false,
+          "tags": ["shell", "network", "utility"],
+          "requires_reboot": false
+        },
+        {
+          "id": "socat",
+          "name": "socat (Socket Cat)",
+          "description": "Enhanced netcat with SSL support, UNIX sockets, PTY shells, and complex relay/proxy setups. Better than netcat for encrypted reverse shells.",
+          "packages": ["socat"],
+          "check_cmd": "which socat",
+          "check_pkg": "socat",
+          "install_script": "security_tools.sh",
+          "builtin": false,
+          "tags": ["shell", "relay", "ssl"],
+          "requires_reboot": false
+        },
+        {
+          "id": "exploitdb",
+          "name": "ExploitDB / searchsploit",
+          "description": "Local copy of Exploit-DB for searching known exploits by software name, CVE, or platform. Offline access to thousands of PoC exploits.",
+          "packages": ["exploitdb"],
+          "check_cmd": "which searchsploit",
+          "check_pkg": "exploitdb",
+          "install_script": "security_tools.sh",
+          "builtin": false,
+          "tags": ["exploits", "cve", "database"],
+          "requires_reboot": false
+        },
+        {
+          "id": "enum4linux",
+          "name": "enum4linux (SMB/LDAP Enumeration)",
+          "description": "Enumerates Windows and Samba systems: users, groups, shares, policies, and domain info. Useful for Active Directory reconnaissance.",
+          "packages": ["enum4linux"],
+          "check_cmd": "which enum4linux",
+          "check_pkg": "enum4linux",
+          "install_script": "security_tools.sh",
+          "builtin": false,
+          "tags": ["windows", "smb", "ldap", "enum"],
+          "requires_reboot": false
+        },
+        {
+          "id": "wordlists",
+          "name": "SecLists / Wordlists",
+          "description": "Collection of security wordlists: passwords, usernames, fuzzing strings, web paths, DNS subdomains. Essential for brute-force and fuzzing attacks.",
+          "packages": ["wordlists", "seclists"],
+          "check_cmd": "ls /usr/share/wordlists/rockyou.txt",
+          "check_pkg": "wordlists",
+          "install_script": "security_tools.sh",
+          "builtin": false,
+          "tags": ["wordlists", "passwords", "fuzzing"],
+          "requires_reboot": false
+        }
+      ]
+    },
+    {
+      "id": "wifi_wireless",
+      "name": "WiFi & Wireless",
+      "description": "Wireless network analysis and testing tools (requires USB WiFi adapter)",
+      "icon": "wifi",
+      "tools": [
+        {
+          "id": "aircrack",
+          "name": "aircrack-ng Suite",
+          "description": "Complete WiFi security auditing suite: airmon-ng (monitor mode), airodump-ng (capture), aireplay-ng (injection/deauth), aircrack-ng (WPA cracking). Requires USB adapter with monitor mode support.",
+          "packages": ["aircrack-ng"],
+          "check_cmd": "which aircrack-ng",
+          "check_pkg": "aircrack-ng",
+          "install_script": "network_tools.sh",
+          "builtin": false,
+          "tags": ["wifi", "wpa", "monitor", "crack"],
+          "requires_reboot": false
+        },
+        {
+          "id": "bettercap",
+          "name": "bettercap (Network Attack Framework)",
+          "description": "Swiss-army knife for network attacks: ARP spoofing, MITM, WiFi probe sniffing, BLE scanning, and web-based control interface.",
+          "packages": ["bettercap"],
+          "check_cmd": "which bettercap",
+          "check_pkg": "bettercap",
+          "install_script": "network_tools.sh",
+          "builtin": false,
+          "tags": ["mitm", "arp", "wifi", "ble"],
+          "requires_reboot": false
+        },
+        {
+          "id": "kismet",
+          "name": "Kismet (Wireless IDS / Sniffer)",
+          "description": "Wireless network detector, sniffer, and IDS for 802.11, Bluetooth, and Zigbee. Passive monitoring and channel hopping for network mapping.",
+          "packages": ["kismet"],
+          "check_cmd": "which kismet",
+          "check_pkg": "kismet",
+          "install_script": "network_tools.sh",
+          "builtin": false,
+          "tags": ["wifi", "bluetooth", "ids", "sniff"],
+          "requires_reboot": false
+        },
+        {
+          "id": "mdk4",
+          "name": "mdk4 (WiFi Stress Testing)",
+          "description": "WiFi stress testing tool for authorized network testing: deauthentication, authentication flooding, and beacon flooding for resilience testing.",
+          "packages": ["mdk4"],
+          "check_cmd": "which mdk4",
+          "check_pkg": "mdk4",
+          "install_script": "network_tools.sh",
+          "builtin": false,
+          "tags": ["wifi", "stress", "test"],
+          "requires_reboot": false
+        },
+        {
+          "id": "hcxdumptool",
+          "name": "hcxdumptool (WPA Handshake Capture)",
+          "description": "Captures WPA/WPA2 handshakes and PMKID without deauthentication. Used for offline WPA password cracking with hashcat.",
+          "packages": ["hcxdumptool", "hcxtools"],
+          "check_cmd": "which hcxdumptool",
+          "check_pkg": "hcxdumptool",
+          "install_script": "network_tools.sh",
+          "builtin": false,
+          "tags": ["wifi", "wpa", "handshake", "capture"],
+          "requires_reboot": false
+        },
+        {
+          "id": "wpa_supplicant",
+          "name": "wpa_supplicant (WiFi Client)",
+          "description": "WPA/WPA2/WPA3 client daemon. Connects the Pi Zero to WiFi networks as a client when USB WiFi adapter is attached.",
+          "packages": ["wpasupplicant"],
+          "check_cmd": "which wpa_supplicant",
+          "check_pkg": "wpasupplicant",
+          "install_script": "network_tools.sh",
+          "builtin": false,
+          "tags": ["wifi", "client", "wpa"],
+          "requires_reboot": false
+        }
+      ]
+    },
+    {
+      "id": "gpio_sensors",
+      "name": "GPIO & Sensors",
+      "description": "Hardware interface libraries for GPIO pins, I2C, SPI, and sensor modules",
+      "icon": "gpio",
+      "tools": [
+        {
+          "id": "rpi_gpio",
+          "name": "RPi.GPIO + gpiozero",
+          "description": "Python GPIO control libraries for the Pi Zero's 40-pin header. gpiozero provides a high-level API; RPi.GPIO offers low-level pin access.",
+          "packages": ["python3-rpi.gpio", "python3-gpiozero"],
+          "check_cmd": "python3 -c 'import RPi.GPIO'",
+          "check_pkg": "python3-rpi.gpio",
+          "install_script": "iot_tools.sh",
+          "builtin": false,
+          "tags": ["gpio", "hardware", "python"],
+          "requires_reboot": false
+        },
+        {
+          "id": "pigpio",
+          "name": "pigpio (Advanced GPIO)",
+          "description": "Advanced GPIO library with microsecond-level timing, hardware PWM, and daemon mode for remote control. Better timing precision than RPi.GPIO.",
+          "packages": ["pigpio", "python3-pigpio"],
+          "check_cmd": "which pigpiod",
+          "check_pkg": "pigpio",
+          "install_script": "iot_tools.sh",
+          "builtin": false,
+          "tags": ["gpio", "pwm", "hardware"],
+          "requires_reboot": false
+        },
+        {
+          "id": "i2c_tools",
+          "name": "i2c-tools",
+          "description": "I2C bus exploration tools: i2cdetect (scan for devices), i2cget/i2cset (read/write registers). Essential for connecting sensors via I2C.",
+          "packages": ["i2c-tools", "python3-smbus2"],
+          "check_cmd": "which i2cdetect",
+          "check_pkg": "i2c-tools",
+          "install_script": "iot_tools.sh",
+          "builtin": false,
+          "tags": ["i2c", "sensors", "hardware"],
+          "requires_reboot": true
+        },
+        {
+          "id": "spi_dev",
+          "name": "SPI Tools + python3-spidev",
+          "description": "SPI interface tools and Python library for communicating with SPI sensors, displays, and devices like the MCP3008 ADC.",
+          "packages": ["python3-spidev"],
+          "check_cmd": "python3 -c 'import spidev'",
+          "check_pkg": "python3-spidev",
+          "install_script": "iot_tools.sh",
+          "builtin": false,
+          "tags": ["spi", "sensors", "hardware"],
+          "requires_reboot": true
+        },
+        {
+          "id": "sensor_libraries",
+          "name": "Adafruit / Circuit Python Sensor Libraries",
+          "description": "Python libraries for common sensors: DHT22 temperature/humidity, BMP280 pressure, MPU6050 IMU, DS18B20 temperature, and many others.",
+          "packages": [],
+          "check_cmd": "python3 -c 'import adafruit_dht'",
+          "check_pkg": "",
+          "install_script": "iot_tools.sh",
+          "builtin": false,
+          "tags": ["sensors", "temperature", "humidity", "imu"],
+          "requires_reboot": false
+        },
+        {
+          "id": "gpio_zero_extras",
+          "name": "gpiozero Extras (Motion, Distance, LEDs)",
+          "description": "Python support for PIR motion sensors, HC-SR04 ultrasonic distance sensors, servo motors, RGB LEDs, and H-bridge motor drivers via gpiozero.",
+          "packages": ["python3-gpiozero", "python3-colorzero"],
+          "check_cmd": "python3 -c 'from gpiozero import MotionSensor'",
+          "check_pkg": "python3-gpiozero",
+          "install_script": "iot_tools.sh",
+          "builtin": false,
+          "tags": ["gpio", "motion", "servo", "led"],
+          "requires_reboot": false
+        }
+      ]
+    },
+    {
+      "id": "iot_protocols",
+      "name": "IoT Protocols",
+      "description": "MQTT, Zigbee, Z-Wave, LoRa, and other IoT communication protocols",
+      "icon": "iot",
+      "tools": [
+        {
+          "id": "mosquitto",
+          "name": "Mosquitto (MQTT Broker + Client)",
+          "description": "Lightweight MQTT message broker and client tools. Enables IoT device communication, sensor data routing, and smart home automation via MQTT.",
+          "packages": ["mosquitto", "mosquitto-clients", "python3-paho-mqtt"],
+          "check_cmd": "which mosquitto",
+          "check_pkg": "mosquitto",
+          "install_script": "iot_tools.sh",
+          "builtin": false,
+          "tags": ["mqtt", "iot", "broker"],
+          "requires_reboot": false
+        },
+        {
+          "id": "node_red",
+          "name": "Node-RED (Visual IoT Automation)",
+          "description": "Flow-based programming environment for wiring together IoT devices and APIs. Drag-and-drop editor for automation workflows. Accessible via browser.",
+          "packages": ["nodejs", "npm"],
+          "check_cmd": "which node-red",
+          "check_pkg": "",
+          "install_script": "iot_tools.sh",
+          "uninstall_cmd": "systemctl disable --now nodered 2>/dev/null; npm uninstall -g node-red 2>/dev/null; rm -f /etc/systemd/system/nodered.service; systemctl daemon-reload 2>/dev/null; true",
+          "builtin": false,
+          "tags": ["nodered", "automation", "iot", "visual"],
+          "requires_reboot": false
+        },
+        {
+          "id": "zigbee2mqtt",
+          "name": "zigbee2mqtt (Zigbee Bridge)",
+          "description": "Bridges Zigbee devices to MQTT. Supports 3000+ Zigbee devices from Philips Hue, IKEA, Xiaomi, etc. Requires USB Zigbee coordinator.",
+          "packages": ["nodejs"],
+          "check_cmd": "ls /opt/zigbee2mqtt",
+          "check_pkg": "",
+          "install_script": "iot_tools.sh",
+          "uninstall_cmd": "systemctl disable --now zigbee2mqtt 2>/dev/null; rm -rf /opt/zigbee2mqtt",
+          "builtin": false,
+          "tags": ["zigbee", "iot", "mqtt", "smarthome"],
+          "requires_reboot": false
+        },
+        {
+          "id": "coap_tools",
+          "name": "CoAP Tools (Constrained IoT Protocol)",
+          "description": "Python-aiocoap for implementing CoAP clients and servers. CoAP is used by constrained IoT devices with limited bandwidth.",
+          "packages": [],
+          "check_cmd": "python3 -c 'import aiocoap'",
+          "check_pkg": "",
+          "install_script": "iot_tools.sh",
+          "builtin": false,
+          "tags": ["coap", "iot", "constrained"],
+          "requires_reboot": false
+        },
+        {
+          "id": "lorawan",
+          "name": "ChirpStack (LoRaWAN Gateway)",
+          "description": "Open-source LoRaWAN network server stack. Bridges LoRa devices to cloud platforms. Requires USB LoRa concentrator hardware.",
+          "packages": [],
+          "check_cmd": "which chirpstack-gateway-bridge",
+          "check_pkg": "",
+          "install_script": "iot_tools.sh",
+          "builtin": false,
+          "tags": ["lora", "lorawan", "iot"],
+          "requires_reboot": false
+        },
+        {
+          "id": "modbus_tools",
+          "name": "Modbus Tools (Industrial Protocol)",
+          "description": "Python pymodbus library for Modbus RTU and TCP communication with industrial PLCs and SCADA equipment. For authorized ICS security research.",
+          "packages": [],
+          "check_cmd": "python3 -c 'import pymodbus'",
+          "check_pkg": "",
+          "install_script": "iot_tools.sh",
+          "builtin": false,
+          "tags": ["modbus", "ics", "scada", "industrial"],
+          "requires_reboot": false
+        }
+      ]
+    },
+    {
+      "id": "media",
+      "name": "Media Services",
+      "description": "Audio streaming, video serving, game emulation, and multimedia tools",
+      "icon": "media",
+      "tools": [
+        {
+          "id": "mpd_ncmpc",
+          "name": "MPD + ncmpc (Music Player Daemon)",
+          "description": "Background music player with client-server architecture. Stream audio to connected devices via HTTP, DLNA, or USB audio output.",
+          "packages": ["mpd", "ncmpc", "mpc"],
+          "check_cmd": "which mpd",
+          "check_pkg": "mpd",
+          "install_script": "media_tools.sh",
+          "builtin": false,
+          "tags": ["audio", "music", "streaming"],
+          "requires_reboot": false
+        },
+        {
+          "id": "ffmpeg",
+          "name": "ffmpeg (Multimedia Processor)",
+          "description": "Complete multimedia framework for transcoding video/audio, streaming, recording, and format conversion. Supports RTMP, HLS, RTSP output.",
+          "packages": ["ffmpeg"],
+          "check_cmd": "which ffmpeg",
+          "check_pkg": "ffmpeg",
+          "install_script": "media_tools.sh",
+          "builtin": false,
+          "tags": ["video", "audio", "transcode", "stream"],
+          "requires_reboot": false
+        },
+        {
+          "id": "icecast2",
+          "name": "Icecast2 (Internet Radio Server)",
+          "description": "Open-source audio streaming server. Broadcasts audio streams over HTTP. Compatible with VLC, Winamp, and most media players.",
+          "packages": ["icecast2"],
+          "check_cmd": "which icecast2",
+          "check_pkg": "icecast2",
+          "install_script": "media_tools.sh",
+          "builtin": false,
+          "tags": ["radio", "streaming", "audio"],
+          "requires_reboot": false
+        },
+        {
+          "id": "retroarch",
+          "name": "RetroArch (Game Emulator)",
+          "description": "Multi-system emulator frontend supporting NES, SNES, GBA, Genesis, and arcade cores. Play retro games over network or on connected display.",
+          "packages": ["retroarch"],
+          "check_cmd": "which retroarch",
+          "check_pkg": "retroarch",
+          "install_script": "media_tools.sh",
+          "builtin": false,
+          "tags": ["games", "emulator", "retro"],
+          "requires_reboot": false
+        },
+        {
+          "id": "jellyfin",
+          "name": "Jellyfin (Media Server)",
+          "description": "Open-source personal media server. Streams movies, TV shows, and music to any device. Self-hosted alternative to Plex.",
+          "packages": [],
+          "check_cmd": "which jellyfin",
+          "check_pkg": "",
+          "install_script": "media_tools.sh",
+          "builtin": false,
+          "tags": ["media", "streaming", "movies", "music"],
+          "requires_reboot": false
+        }
+      ]
+    },
+    {
+      "id": "dev_tools",
+      "name": "Development Tools",
+      "description": "Programming languages, version control, containers, and development servers",
+      "icon": "dev",
+      "tools": [
+        {
+          "id": "python3_dev",
+          "name": "Python 3 Development Stack",
+          "description": "Python 3 with pip, venv, development headers, and common libraries. The base for most Pi Zero scripting and automation tasks.",
+          "packages": ["python3", "python3-pip", "python3-venv", "python3-dev", "build-essential"],
+          "check_cmd": "which python3",
+          "check_pkg": "python3",
+          "install_script": "dev_tools.sh",
+          "builtin": false,
+          "tags": ["python", "development", "scripting"],
+          "requires_reboot": false
+        },
+        {
+          "id": "nodejs_npm",
+          "name": "Node.js + npm",
+          "description": "JavaScript runtime for backend development and IoT tooling. Required for Node-RED, zigbee2mqtt, and many other tools.",
+          "packages": ["nodejs", "npm"],
+          "check_cmd": "which node",
+          "check_pkg": "nodejs",
+          "install_script": "dev_tools.sh",
+          "builtin": false,
+          "tags": ["nodejs", "javascript", "development"],
+          "requires_reboot": false
+        },
+        {
+          "id": "git",
+          "name": "git",
+          "description": "Distributed version control system. Clone repositories, manage code, and pull tool updates directly on the Pi Zero.",
+          "packages": ["git"],
+          "check_cmd": "which git",
+          "check_pkg": "git",
+          "install_script": "dev_tools.sh",
+          "builtin": false,
+          "tags": ["git", "version-control"],
+          "requires_reboot": false
+        },
+        {
+          "id": "docker",
+          "name": "Docker (Container Runtime)",
+          "description": "Containerization platform for running isolated applications. Supports ARM/arm32v6 images. Enables portable app deployment on the Pi Zero.",
+          "packages": ["docker.io"],
+          "check_cmd": "which docker",
+          "check_pkg": "docker.io",
+          "install_script": "dev_tools.sh",
+          "builtin": false,
+          "tags": ["docker", "containers", "deployment"],
+          "requires_reboot": true
+        },
+        {
+          "id": "vscode_server",
+          "name": "code-server (VS Code in Browser)",
+          "description": "Run Visual Studio Code in the browser. Code directly on the Pi Zero from any device. Access at http://172.16.0.1:8443",
+          "packages": [],
+          "check_cmd": "which code-server",
+          "check_pkg": "",
+          "install_script": "dev_tools.sh",
+          "builtin": false,
+          "tags": ["vscode", "editor", "browser", "ide"],
+          "requires_reboot": false
+        },
+        {
+          "id": "sqlite3",
+          "name": "SQLite3 (Embedded Database)",
+          "description": "Lightweight embedded database engine. Ideal for Pi Zero's limited resources. Used by many applications for local data storage.",
+          "packages": ["sqlite3", "python3-sqlite3"],
+          "check_cmd": "which sqlite3",
+          "check_pkg": "sqlite3",
+          "install_script": "dev_tools.sh",
+          "builtin": false,
+          "tags": ["database", "sqlite", "storage"],
+          "requires_reboot": false
+        },
+        {
+          "id": "golang",
+          "name": "Go (Golang) Runtime",
+          "description": "Go programming language toolchain for ARM. Compile Go programs natively on the Pi Zero. Required for building P4wnP1 from source on-device.",
+          "packages": ["golang"],
+          "check_cmd": "which go",
+          "check_pkg": "golang",
+          "install_script": "dev_tools.sh",
+          "builtin": false,
+          "tags": ["go", "golang", "development", "compile"],
+          "requires_reboot": false
+        },
+        {
+          "id": "gitea",
+          "name": "Gitea (Self-Hosted Git Server)",
+          "description": "Lightweight self-hosted Git service with web UI. Host private repositories on the Pi Zero. Accessible from PC or Android via browser.",
+          "packages": [],
+          "check_cmd": "which gitea",
+          "check_pkg": "",
+          "install_script": "dev_tools.sh",
+          "uninstall_cmd": "systemctl disable --now gitea 2>/dev/null; rm -f /usr/local/bin/gitea /etc/systemd/system/gitea.service; systemctl daemon-reload 2>/dev/null; true",
+          "builtin": false,
+          "tags": ["git", "server", "repositories"],
+          "requires_reboot": false
+        }
+      ]
+    },
+    {
+      "id": "monitoring",
+      "name": "Monitoring & Logging",
+      "description": "System monitoring, metrics collection, and centralized logging",
+      "icon": "monitoring",
+      "tools": [
+        {
+          "id": "prometheus",
+          "name": "Prometheus + Node Exporter",
+          "description": "Time-series metrics collection and alerting system. Node exporter collects CPU, memory, disk, and network metrics from the Pi Zero.",
+          "packages": ["prometheus", "prometheus-node-exporter"],
+          "check_cmd": "which prometheus",
+          "check_pkg": "prometheus",
+          "install_script": "dev_tools.sh",
+          "builtin": false,
+          "tags": ["metrics", "monitoring", "prometheus"],
+          "requires_reboot": false
+        },
+        {
+          "id": "grafana",
+          "name": "Grafana (Metrics Dashboard)",
+          "description": "Visual analytics and monitoring dashboards. Connect to Prometheus or InfluxDB and create real-time visualizations accessible from browser.",
+          "packages": [],
+          "check_cmd": "which grafana-server",
+          "check_pkg": "",
+          "install_script": "dev_tools.sh",
+          "builtin": false,
+          "tags": ["metrics", "dashboard", "visualization"],
+          "requires_reboot": false
+        },
+        {
+          "id": "influxdb",
+          "name": "InfluxDB (Time-Series Database)",
+          "description": "High-performance time-series database for sensor readings and metrics. Pairs with Grafana for sensor data visualization.",
+          "packages": [],
+          "check_cmd": "which influx",
+          "check_pkg": "",
+          "install_script": "dev_tools.sh",
+          "builtin": false,
+          "tags": ["database", "time-series", "sensors"],
+          "requires_reboot": false
+        },
+        {
+          "id": "logwatch",
+          "name": "logwatch + rsyslog",
+          "description": "Centralized system logging with rsyslog and daily log analysis with logwatch. Forward logs from remote systems to the Pi Zero.",
+          "packages": ["rsyslog", "logwatch"],
+          "check_cmd": "which rsyslogd",
+          "check_pkg": "rsyslog",
+          "install_script": "dev_tools.sh",
+          "builtin": false,
+          "tags": ["logging", "syslog", "monitoring"],
+          "requires_reboot": false
+        },
+        {
+          "id": "netdata",
+          "name": "netdata (Real-Time System Monitor)",
+          "description": "Real-time performance monitoring with built-in web dashboard. Low overhead monitor for CPU, memory, network, and disk. Accessible at port 19999.",
+          "packages": ["netdata"],
+          "check_cmd": "which netdata",
+          "check_pkg": "netdata",
+          "install_script": "dev_tools.sh",
+          "builtin": false,
+          "tags": ["monitoring", "realtime", "dashboard"],
+          "requires_reboot": false
+        }
+      ]
+    },
+    {
+      "id": "sdr",
+      "name": "SDR & Radio",
+      "description": "Software-defined radio for RF monitoring, ADS-B, and spectrum analysis",
+      "icon": "radio",
+      "tools": [
+        {
+          "id": "rtl_sdr",
+          "name": "RTL-SDR Tools",
+          "description": "Software-defined radio drivers and tools for RTL2832U-based USB dongles. Enables spectrum scanning, signal capture, FM radio, and ADS-B aircraft tracking.",
+          "packages": ["rtl-sdr", "librtlsdr-dev"],
+          "check_cmd": "which rtl_sdr",
+          "check_pkg": "rtl-sdr",
+          "install_script": "dev_tools.sh",
+          "builtin": false,
+          "tags": ["sdr", "rf", "radio", "spectrum"],
+          "requires_reboot": false
+        },
+        {
+          "id": "dump1090",
+          "name": "dump1090 (ADS-B Aircraft Tracker)",
+          "description": "Decodes ADS-B aircraft transponder signals from RTL-SDR. Real-time aircraft position tracking with web-based map display.",
+          "packages": ["dump1090-fa"],
+          "check_cmd": "which dump1090-fa",
+          "check_pkg": "dump1090-fa",
+          "install_script": "dev_tools.sh",
+          "builtin": false,
+          "tags": ["adsb", "aircraft", "sdr", "tracking"],
+          "requires_reboot": false
+        },
+        {
+          "id": "gqrx",
+          "name": "gqrx (SDR Receiver)",
+          "description": "Software-defined radio receiver application with spectrum analyzer. Requires display or X11 forwarding. Supports RTL-SDR, HackRF, and other SDR hardware.",
+          "packages": ["gqrx-sdr"],
+          "check_cmd": "which gqrx",
+          "check_pkg": "gqrx-sdr",
+          "install_script": "dev_tools.sh",
+          "builtin": false,
+          "tags": ["sdr", "spectrum", "radio", "gui"],
+          "requires_reboot": false
+        },
+        {
+          "id": "gnuradio",
+          "name": "GNU Radio",
+          "description": "Toolkit for building software-defined radio systems. Create custom signal processing pipelines using Python or visual flowgraph editor.",
+          "packages": ["gnuradio"],
+          "check_cmd": "which gnuradio-companion",
+          "check_pkg": "gnuradio",
+          "install_script": "dev_tools.sh",
+          "builtin": false,
+          "tags": ["sdr", "signal", "dsp", "gnuradio"],
+          "requires_reboot": false
+        }
+      ]
+    },
+    {
+      "id": "home_automation",
+      "name": "Home Automation",
+      "description": "Smart home platforms, automation hubs, and building control systems",
+      "icon": "home",
+      "tools": [
+        {
+          "id": "homeassistant",
+          "name": "Home Assistant",
+          "description": "Open-source home automation platform integrating 3000+ smart home devices and services. Web UI at port 8123. Requires 1GB+ free disk space.",
+          "packages": [],
+          "check_cmd": "which hass",
+          "check_pkg": "",
+          "install_script": "dev_tools.sh",
+          "uninstall_cmd": "systemctl disable --now homeassistant 2>/dev/null; pip3 uninstall -y homeassistant 2>/dev/null; rm -f /etc/systemd/system/homeassistant.service; systemctl daemon-reload 2>/dev/null; true",
+          "builtin": false,
+          "tags": ["homeassistant", "smarthome", "automation", "hub"],
+          "requires_reboot": false
+        },
+        {
+          "id": "openhab",
+          "name": "openHAB",
+          "description": "Vendor-neutral open-source home automation platform. Integrates with KNX, Z-Wave, Zigbee, MQTT, and 400+ other bindings.",
+          "packages": [],
+          "check_cmd": "which openhab-cli",
+          "check_pkg": "",
+          "install_script": "dev_tools.sh",
+          "builtin": false,
+          "tags": ["openhab", "smarthome", "automation"],
+          "requires_reboot": false
+        },
+        {
+          "id": "matter_thread",
+          "name": "Matter / Thread Border Router",
+          "description": "Python chip-tool for Matter protocol and OpenThread border router daemon. Connects Thread mesh networks and controls Matter-based smart home devices.",
+          "packages": ["python3-pip"],
+          "check_cmd": "which otbr-agent",
+          "check_pkg": "",
+          "install_script": "iot_tools.sh",
+          "builtin": false,
+          "tags": ["matter", "thread", "smarthome"],
+          "requires_reboot": false
+        }
+      ]
+    },
+    {
+      "id": "infrastructure",
+      "name": "Infrastructure & Networking",
+      "description": "VPN mesh networks, lightweight Kubernetes, distributed systems",
+      "icon": "infra",
+      "tools": [
+        {
+          "id": "k3s",
+          "name": "k3s (Lightweight Kubernetes)",
+          "description": "Production-grade Kubernetes for resource-constrained devices. Run containerized workloads on the Pi Zero as part of a cluster.",
+          "packages": [],
+          "check_cmd": "which k3s",
+          "check_pkg": "",
+          "install_script": "dev_tools.sh",
+          "uninstall_cmd": "/usr/local/bin/k3s-uninstall.sh 2>/dev/null || (systemctl disable --now k3s 2>/dev/null; rm -f /usr/local/bin/k3s; true)",
+          "builtin": false,
+          "tags": ["kubernetes", "k3s", "containers", "cluster"],
+          "requires_reboot": false
+        },
+        {
+          "id": "tailscale",
+          "name": "Tailscale (Zero-Config Mesh VPN)",
+          "description": "WireGuard-based mesh VPN that works through NAT and firewalls. Creates a private network between all your devices without port forwarding.",
+          "packages": [],
+          "check_cmd": "which tailscale",
+          "check_pkg": "",
+          "install_script": "dev_tools.sh",
+          "builtin": false,
+          "tags": ["vpn", "mesh", "tailscale", "wireguard"],
+          "requires_reboot": false
+        },
+        {
+          "id": "avahi_mdns",
+          "name": "avahi (mDNS / Bonjour)",
+          "description": "mDNS/DNS-SD implementation for zero-configuration networking. Makes the Pi Zero discoverable as 'p4wnp1.local' without manual DNS configuration.",
+          "packages": ["avahi-daemon", "avahi-utils"],
+          "check_cmd": "which avahi-daemon",
+          "check_pkg": "avahi-daemon",
+          "install_script": "dev_tools.sh",
+          "builtin": false,
+          "tags": ["mdns", "discovery", "bonjour"],
+          "requires_reboot": false
+        },
+        {
+          "id": "openssh_server",
+          "name": "OpenSSH Server",
+          "description": "SSH server for remote shell access to the Pi Zero. Manage the device remotely over USB network or WiFi without physical access.",
+          "packages": ["openssh-server"],
+          "check_cmd": "which sshd",
+          "check_pkg": "openssh-server",
+          "install_script": "dev_tools.sh",
+          "builtin": false,
+          "tags": ["ssh", "remote", "access"],
+          "requires_reboot": false
+        }
+      ]
+    }
+  ]
+}

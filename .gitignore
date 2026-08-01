@@ -1,0 +1,25 @@
+# PyInstaller build artifacts
+tool_installer/build/
+tool_installer/dist/
+tool_installer/AppDir/
+tool_installer/appimagetool
+tool_installer/__pycache__/
+tool_installer/*.pyc
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Go build output
+P4wnP1_service
+P4wnP1_cli
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo

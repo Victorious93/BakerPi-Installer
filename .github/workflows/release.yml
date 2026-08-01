@@ -1,0 +1,175 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag name (e.g. v1.0.0)"
+        required: true
+        default: "v1.0.0"
+      target:
+        description: "Target commit SHA (leave blank for current HEAD)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+env:
+  REL_TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  build-linux:
+    name: Linux AppImage
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target || github.sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install pyinstaller fastapi uvicorn paramiko cryptography aiohttp
+
+      - name: Build binary
+        run: pyinstaller p4wnp1_installer.spec --noconfirm
+
+      - name: Package as AppImage
+        run: |
+          TAG="${{ env.REL_TAG }}"
+          mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
+          cp dist/P4wnP1_Installer AppDir/usr/bin/
+          cp p4wnp1-installer.desktop AppDir/usr/share/applications/p4wnp1-installer.desktop
+          cp p4wnp1-installer.desktop AppDir/
+
+          printf '\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82' \
+            > AppDir/p4wnp1-installer.png
+          cp AppDir/p4wnp1-installer.png AppDir/usr/share/icons/hicolor/256x256/apps/
+
+          wget -q "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" \
+            -O appimagetool && chmod +x appimagetool
+          ARCH=x86_64 ./appimagetool AppDir "dist/P4wnP1_Installer-${TAG}-x86_64.AppImage" || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: |
+            dist/P4wnP1_Installer
+            dist/P4wnP1_Installer-*-x86_64.AppImage
+          retention-days: 1
+
+  build-windows:
+    name: Windows Installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target || github.sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install pyinstaller fastapi uvicorn paramiko cryptography aiohttp
+
+      - name: Build EXE
+        run: pyinstaller p4wnp1_installer.spec --noconfirm
+
+      - name: Install Inno Setup and build installer
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            $tmp = "$env:TEMP\is.exe"
+            Invoke-WebRequest -Uri "https://jrsoftware.org/download.php/is.exe" -OutFile $tmp
+            Start-Process -Wait -FilePath $tmp -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART"
+          }
+          & $iscc installer.iss
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: |
+            dist/P4wnP1_Installer.exe
+            dist/installer/P4wnP1_Installer_Setup.exe
+          retention-days: 1
+
+  release:
+    name: Create GitHub Release
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-build
+          path: release-assets/linux
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-build
+          path: release-assets/windows
+
+      - name: Rename assets with version tag
+        run: |
+          TAG="${{ env.REL_TAG }}"
+          cd release-assets
+          find . -type f | sort
+
+          [ -f linux/P4wnP1_Installer ] && \
+            mv linux/P4wnP1_Installer "linux/P4wnP1_Installer-${TAG}-linux-x86_64"
+          [ -f windows/P4wnP1_Installer.exe ] && \
+            mv windows/P4wnP1_Installer.exe "windows/P4wnP1_Installer-${TAG}-windows.exe"
+          [ -f windows/P4wnP1_Installer_Setup.exe ] && \
+            mv windows/P4wnP1_Installer_Setup.exe "windows/P4wnP1_Installer_Setup-${TAG}.exe"
+
+      - name: Create release and upload assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET: ${{ inputs.target || github.sha }}
+        run: |
+          TAG="${{ env.REL_TAG }}"
+          gh release create "$TAG" \
+            --target "$TARGET" \
+            --title "BakerPi Installer $TAG" \
+            --notes "## Downloads
+
+          | Platform | File | Notes |
+          |---|---|---|
+          | Linux x86-64 | \`P4wnP1_Installer-${TAG}-linux-x86_64\` | Standalone binary, \`chmod +x\` then run |
+          | Linux x86-64 | \`P4wnP1_Installer-${TAG}-x86_64.AppImage\` | AppImage, double-click or run |
+          | Windows | \`P4wnP1_Installer-${TAG}-windows.exe\` | Standalone EXE, no install needed |
+          | Windows | \`P4wnP1_Installer_Setup-${TAG}.exe\` | Installer with Start Menu + uninstaller |
+
+          ## Quick start
+
+          **PC mode** — run on your laptop, connects to Pi Zero via SSH over USB:
+          \`\`\`
+          ./run_pc.sh          # Linux/macOS
+          run_pc.bat           # Windows
+          \`\`\`
+
+          **On-device mode** — run on the Pi Zero, access from phone browser at \`http://172.16.0.1:8080\`:
+          \`\`\`
+          sudo ./run_ondevice.sh
+          \`\`\`" \
+            release-assets/linux/P4wnP1_Installer-${TAG}-linux-x86_64 \
+            release-assets/linux/P4wnP1_Installer-${TAG}-x86_64.AppImage \
+            release-assets/windows/P4wnP1_Installer-${TAG}-windows.exe \
+            release-assets/windows/P4wnP1_Installer_Setup-${TAG}.exe \
+            2>/dev/null || \
+          gh release create "$TAG" \
+            --target "$TARGET" \
+            --title "BakerPi Installer $TAG" \
+            --notes "BakerPi Installer $TAG" \
+            $(find release-assets -type f | sort | xargs)
