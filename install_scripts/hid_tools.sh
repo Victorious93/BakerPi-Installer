@@ -76,7 +76,7 @@ case "$TOOL_ID" in
   "duckyscript_samples") install_duckyscript_samples ;;
   "usb_image_tools")     install_usb_image_tools ;;
   *)
-    install_duckyscript_samples
-    install_usb_image_tools
+    echo "[hid] Unknown tool: $TOOL_ID"
+    exit 1
     ;;
 esac

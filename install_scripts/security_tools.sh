@@ -72,9 +72,15 @@ install_metasploit() {
 }
 
 install_impacket() {
-  echo "[sec] ${UPDATE_MODE:+Updat}${UPDATE_MODE:-Install}ing impacket..."
-  pip3 install ${UPDATE_MODE:+--upgrade} impacket
-  echo "[sec] impacket ${UPDATE_MODE:-install}ed."
+  if [ "$UPDATE_MODE" = "update" ]; then
+    echo "[sec] Updating impacket..."
+    pip3 install --upgrade impacket
+    echo "[sec] impacket updated."
+  else
+    echo "[sec] Installing impacket..."
+    pip3 install impacket
+    echo "[sec] impacket installed."
+  fi
 }
 
 install_netcat() {

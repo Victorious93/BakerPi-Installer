@@ -275,7 +275,7 @@ def _run_job_sync(job_id: str, tool_ids: list, catalog: dict, action: str):
 
 def _spawn_job(job_id: str, tool_ids: list, catalog: dict, action: str):
     """Submit a job to the thread pool from an async endpoint."""
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     loop.run_in_executor(_executor, _run_job_sync, job_id, tool_ids, catalog, action)
 
 # ── API Models ────────────────────────────────────────────────────────────────
