@@ -16,9 +16,9 @@ Run the pre-built binary — no Python needed:
 
 ```bash
 # Linux
-chmod +x P4wnP1_Installer && ./P4wnP1_Installer
+chmod +x BakerPi_Installer && ./BakerPi_Installer
 
-# Windows: double-click P4wnP1_Installer.exe or P4wnP1_Installer_Setup.exe
+# Windows: double-click BakerPi_Installer.exe or BakerPi_Installer_Setup.exe
 ```
 
 Or launch from source (opens a native app window, no browser required):

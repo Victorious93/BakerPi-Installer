@@ -1,5 +1,5 @@
 @echo off
-:: Launch P4wnP1 Tool Installer in PC/SSH mode on Windows.
+:: Launch BakerPi Tool Installer in PC/SSH mode on Windows.
 :: Connects to the Pi Zero via SSH over USB RNDIS (172.16.0.1) and opens
 :: the web UI in your browser at http://localhost:8080.
 ::

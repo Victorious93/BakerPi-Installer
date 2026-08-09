@@ -3,10 +3,10 @@
 # PyInstaller spec for BakerPi Tool Installer
 #
 # Build with:
-#   pyinstaller p4wnp1_installer.spec --noconfirm
+#   pyinstaller bakerpi_installer.spec --noconfirm
 #
-# Output: dist/P4wnP1_Installer   (Linux/macOS)
-#         dist/P4wnP1_Installer.exe (Windows)
+# Output: dist/BakerPi_Installer   (Linux/macOS)
+#         dist/BakerPi_Installer.exe (Windows)
 
 added_files = [
     ("server.py",       "."),
@@ -68,7 +68,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name="P4wnP1_Installer",
+    name="BakerPi_Installer",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

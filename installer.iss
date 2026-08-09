@@ -6,7 +6,7 @@
 #define AppVersion   "1.0"
 #define AppPublisher "BakerPi Project"
 #define AppURL       "https://github.com/Victorious93/BakerPi-Installer"
-#define AppExeName   "P4wnP1_Installer.exe"
+#define AppExeName   "BakerPi_Installer.exe"
 
 [Setup]
 AppId={{A7F3C2D1-4B8E-4F9A-B2C3-D4E5F6A7B8C9}
@@ -21,7 +21,7 @@ DefaultGroupName={#AppName}
 AllowNoIcons=yes
 LicenseFile=
 OutputDir=dist\installer
-OutputBaseFilename=P4wnP1_Installer_Setup
+OutputBaseFilename=BakerPi_Installer_Setup
 SetupIconFile=static\favicon.ico
 Compression=lzma
 SolidCompression=yes

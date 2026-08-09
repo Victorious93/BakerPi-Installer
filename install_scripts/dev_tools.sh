@@ -179,7 +179,7 @@ install_avahi() {
   echo "[infra] Installing avahi (mDNS)..."
   apt-get install -y --no-install-recommends avahi-daemon avahi-utils
   systemctl enable avahi-daemon
-  echo "[infra] avahi installed. Pi Zero accessible at p4wnp1.local"
+  echo "[infra] avahi installed. Pi Zero accessible at bakerpi.local"
 }
 
 install_openssh() {

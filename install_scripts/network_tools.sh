@@ -8,15 +8,15 @@ UPDATE_MODE="${2:-}"
 install_dnsmasq() {
   echo "[net] Installing dnsmasq..."
   apt-get install -y --no-install-recommends dnsmasq
-  systemctl disable dnsmasq 2>/dev/null || true  # P4wnP1 manages it
-  echo "[net] dnsmasq installed (managed by P4wnP1)."
+  systemctl disable dnsmasq 2>/dev/null || true  # BakerPi core manages it
+  echo "[net] dnsmasq installed (managed by BakerPi core)."
 }
 
 install_hostapd() {
   echo "[net] Installing hostapd..."
   apt-get install -y --no-install-recommends hostapd
-  systemctl disable hostapd 2>/dev/null || true  # P4wnP1 manages it
-  echo "[net] hostapd installed (managed by P4wnP1)."
+  systemctl disable hostapd 2>/dev/null || true  # BakerPi core manages it
+  echo "[net] hostapd installed (managed by BakerPi core)."
 }
 
 install_iodine() {

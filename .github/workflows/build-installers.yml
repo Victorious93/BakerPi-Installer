@@ -37,28 +37,28 @@ jobs:
         run: pip install pyinstaller fastapi uvicorn paramiko cryptography aiohttp pywebview
 
       - name: Build binary
-        run: pyinstaller p4wnp1_installer.spec --noconfirm
+        run: pyinstaller bakerpi_installer.spec --noconfirm
 
       - name: Build AppImage
         run: |
           mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
-          cp dist/P4wnP1_Installer AppDir/usr/bin/
-          cp p4wnp1-installer.desktop AppDir/usr/share/applications/p4wnp1-installer.desktop
-          cp p4wnp1-installer.desktop AppDir/
+          cp dist/BakerPi_Installer AppDir/usr/bin/
+          cp bakerpi-installer.desktop AppDir/usr/share/applications/bakerpi-installer.desktop
+          cp bakerpi-installer.desktop AppDir/
 
           cp static/bakerpi-logo-256.png AppDir/bakerpi-installer.png
           cp static/bakerpi-logo-256.png AppDir/usr/share/icons/hicolor/256x256/apps/bakerpi-installer.png
 
           wget -q "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" \
             -O appimagetool && chmod +x appimagetool
-          ARCH=x86_64 ./appimagetool AppDir dist/P4wnP1_Installer-x86_64.AppImage || true
+          ARCH=x86_64 ./appimagetool AppDir dist/BakerPi_Installer-x86_64.AppImage || true
 
       - uses: actions/upload-artifact@v4
         with:
           name: linux-build
           path: |
-            dist/P4wnP1_Installer
-            dist/P4wnP1_Installer-x86_64.AppImage
+            dist/BakerPi_Installer
+            dist/BakerPi_Installer-x86_64.AppImage
           retention-days: 30
 
   build-windows:
@@ -76,7 +76,7 @@ jobs:
         run: pip install pyinstaller fastapi uvicorn paramiko cryptography aiohttp pywebview
 
       - name: Build EXE
-        run: pyinstaller p4wnp1_installer.spec --noconfirm
+        run: pyinstaller bakerpi_installer.spec --noconfirm
 
       - name: Install Inno Setup and build installer
         shell: pwsh
@@ -93,6 +93,6 @@ jobs:
         with:
           name: windows-build
           path: |
-            dist/P4wnP1_Installer.exe
-            dist/installer/P4wnP1_Installer_Setup.exe
+            dist/BakerPi_Installer.exe
+            dist/installer/BakerPi_Installer_Setup.exe
           retention-days: 30

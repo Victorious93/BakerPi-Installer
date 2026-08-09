@@ -7,7 +7,7 @@ UPDATE_MODE="${2:-}"
 
 install_duckyscript_samples() {
   echo "[hid] Installing extended DuckyScript samples..."
-  HIDS_DIR="/usr/local/P4wnP1/HIDScripts"
+  HIDS_DIR="/usr/local/BakerPi/HIDScripts"
   mkdir -p "$HIDS_DIR"
 
   cat > "$HIDS_DIR/windows_powershell_admin.js" << 'DUCK'

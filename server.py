@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-P4wnP1 A.L.O.A. Tool Installer Server
+BakerPi Tool Installer Server
 Runs on PC (SSH mode) or on Pi Zero itself (local mode).
 Serves a responsive web UI for selecting and installing tools.
 """
@@ -35,7 +35,7 @@ STATIC_DIR = BASE_DIR / "static"
 
 # ── Globals ───────────────────────────────────────────────────────────────────
 
-app = FastAPI(title="P4wnP1 Tool Installer", version="1.0.0")
+app = FastAPI(title="BakerPi Tool Installer", version="1.0.0")
 config: dict = {}
 ssh_client: Optional[paramiko.SSHClient] = None
 jobs: dict[str, dict] = {}  # job_id → {status, output, tool_ids}
@@ -151,7 +151,7 @@ def connect_ssh(host: str, user: str, port: int, password: Optional[str], key_fi
 
 def _script_cmd(script: str, tool_id: str, mode_arg: str = "") -> str:
     """Build the shell command for a given install script, tool, and mode."""
-    script_path = f"/usr/local/P4wnP1/tool_installer/install_scripts/{script}"
+    script_path = f"/usr/local/BakerPi/tool_installer/install_scripts/{script}"
     local_path = str(SCRIPTS_DIR / script)
     suffix = f" {tool_id}" + (f" {mode_arg}" if mode_arg else "")
     if config.get("mode") == "local":
@@ -164,7 +164,7 @@ def get_install_cmd(tool: dict) -> str:
     script = tool.get("install_script", "")
 
     if tool.get("builtin"):
-        return "echo 'Built-in — already available via P4wnP1 service.'"
+        return "echo 'Built-in — already available via BakerPi core service.'"
 
     if not script:
         pkgs = tool.get("packages", [])
@@ -179,7 +179,7 @@ def get_update_cmd(tool: dict) -> str:
     tool_id = tool["id"]
 
     if tool.get("builtin"):
-        return "echo 'Built-in — managed by the P4wnP1 service; no update needed.'"
+        return "echo 'Built-in — managed by the BakerPi core service; no update needed.'"
 
     # Catalog-provided explicit update command takes priority
     explicit = tool.get("update_cmd", "")
@@ -206,7 +206,7 @@ def get_uninstall_cmd(tool: dict) -> str:
     tool_id = tool["id"]
 
     if tool.get("builtin"):
-        return "echo 'Built-in — cannot be uninstalled here; managed by P4wnP1 service.'"
+        return "echo 'Built-in — cannot be uninstalled here; managed by BakerPi core service.'"
 
     # Catalog-provided explicit uninstall command takes priority
     explicit = tool.get("uninstall_cmd", "")
@@ -307,7 +307,7 @@ async def root():
     index = STATIC_DIR / "index.html"
     if index.exists():
         return index.read_text()
-    return "<h1>P4wnP1 Tool Installer</h1><p>static/index.html not found.</p>"
+    return "<h1>BakerPi Tool Installer</h1><p>static/index.html not found.</p>"
 
 @app.get("/api/catalog")
 async def get_catalog():
@@ -499,7 +499,7 @@ async def vnc_stop():
 # ── Startup ───────────────────────────────────────────────────────────────────
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="P4wnP1 Tool Installer")
+    parser = argparse.ArgumentParser(description="BakerPi Tool Installer")
     parser.add_argument("--mode", choices=["local", "ssh"], default="local",
                         help="local: run on Pi Zero itself | ssh: connect to Pi Zero via SSH")
     parser.add_argument("--host", default="172.16.0.1", help="Pi Zero IP (SSH mode)")

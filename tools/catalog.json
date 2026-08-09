@@ -5,13 +5,13 @@
     {
       "id": "hid_usb",
       "name": "HID & USB Emulation",
-      "description": "Core P4wnP1 keyboard, mouse, and composite USB device capabilities",
+      "description": "Core BakerPi keyboard, mouse, and composite USB device capabilities",
       "icon": "usb",
       "tools": [
         {
-          "id": "p4wnp1_core",
-          "name": "P4wnP1 Core Service",
-          "description": "Main P4wnP1 ALOA daemon: HID keyboard/mouse emulation, DuckyScript engine, USB gadget management, web UI on port 8000",
+          "id": "bakerpi_core",
+          "name": "BakerPi Core Service",
+          "description": "Main BakerPi daemon: HID keyboard/mouse emulation, DuckyScript engine, USB gadget management, web UI on port 8000",
           "packages": [],
           "check_cmd": "which P4wnP1_service",
           "check_pkg": "",
@@ -25,7 +25,7 @@
           "name": "DuckyScript Sample Library",
           "description": "Extended library of DuckyScript payloads for Windows, Linux, and macOS. Includes helpers for PowerShell, bash injection, and mouse automation.",
           "packages": [],
-          "check_cmd": "ls /usr/local/P4wnP1/HIDScripts/windows_powershell_admin.js",
+          "check_cmd": "ls /usr/local/BakerPi/HIDScripts/windows_powershell_admin.js",
           "check_pkg": "",
           "install_script": "hid_tools.sh",
           "builtin": false,
@@ -55,7 +55,7 @@
         {
           "id": "dnsmasq",
           "name": "dnsmasq (DHCP + DNS Server)",
-          "description": "Lightweight DHCP and DNS server. Powers P4wnP1's USB network interface. Supports DNS spoofing, custom leases, and DNS sinkholing.",
+          "description": "Lightweight DHCP and DNS server. Powers BakerPi's USB network interface. Supports DNS spoofing, custom leases, and DNS sinkholing.",
           "packages": ["dnsmasq"],
           "check_cmd": "which dnsmasq",
           "check_pkg": "dnsmasq",
@@ -780,7 +780,7 @@
         {
           "id": "golang",
           "name": "Go (Golang) Runtime",
-          "description": "Go programming language toolchain for ARM. Compile Go programs natively on the Pi Zero. Required for building P4wnP1 from source on-device.",
+          "description": "Go programming language toolchain for ARM. Compile Go programs natively on the Pi Zero. Required for building BakerPi from source on-device.",
           "packages": ["golang"],
           "check_cmd": "which go",
           "check_pkg": "golang",
@@ -1007,7 +1007,7 @@
         {
           "id": "avahi_mdns",
           "name": "avahi (mDNS / Bonjour)",
-          "description": "mDNS/DNS-SD implementation for zero-configuration networking. Makes the Pi Zero discoverable as 'p4wnp1.local' without manual DNS configuration.",
+          "description": "mDNS/DNS-SD implementation for zero-configuration networking. Makes the Pi Zero discoverable as 'bakerpi.local' without manual DNS configuration.",
           "packages": ["avahi-daemon", "avahi-utils"],
           "check_cmd": "which avahi-daemon",
           "check_pkg": "avahi-daemon",
