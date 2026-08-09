@@ -1,5 +1,5 @@
 #!/bin/bash
-# Launch P4wnP1 Tool Installer in on-device (local) mode.
+# Launch BakerPi Tool Installer in on-device (local) mode.
 # Run this ON the Pi Zero itself. Access the UI from a connected PC or
 # Android phone at http://172.16.0.1:8080.
 #

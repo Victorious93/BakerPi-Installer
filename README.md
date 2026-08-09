@@ -115,7 +115,7 @@ Requires `pyinstaller` (`pip3 install pyinstaller`). Output goes to `dist/`. See
 
 | Category | Example Tools |
 |---|---|
-| HID & USB | P4wnP1 core, DuckyScript samples, USB image tools |
+| HID & USB | BakerPi core, DuckyScript samples, USB image tools |
 | Network | dnsmasq, wireguard, openvpn, responder, nginx, tcpdump |
 | Security Research | nmap, masscan, nikto, sqlmap, hydra, hashcat, metasploit, impacket |
 | WiFi & Wireless | aircrack-ng, bettercap, kismet, hcxdumptool |
