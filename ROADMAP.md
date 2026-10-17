@@ -47,6 +47,7 @@ Update a tool across the whole fleet at once, report per-device success/failure,
 | 7 | Android APK wrapper | Planned — not implemented |
 | 8 | Pi Imager (SD-card flashing) | Planned — not implemented |
 | 8a | Phone → Pi over USB-OTG: flash → provision → manage | Planned — not implemented |
+| 8b | Full control of a connected Pi from the phone | Planned — not implemented |
 
 ### 7. Android APK wrapper
 A native Android app — in line with the other Android apps in the Victorious fleet — wrapping the existing installer UI. The goal is to add native USB-OTG device control and offline use, going beyond the current "Add to Home Screen" PWA (which remains the supported Android option today). The intent is for the APK not only to manage a Pi that is already set up, but also to install BakerPi onto a fresh Pi directly from the phone (see items 8 and 8a).
@@ -62,6 +63,28 @@ An end-to-end flow driven entirely from the Android APK, with the phone connecte
 3. **Manage** — keep using the same app to install, update, or remove tools on that Pi afterwards.
 
 This extends the APK beyond managing a Pi that has already been configured elsewhere: the goal is to take a blank Pi to a working BakerPi setup using only an Android phone. As with everything on this page, this is planned only — it has not been implemented or tested on any hardware.
+
+### 8b. Full control of a connected Pi from the phone
+Drive a connected Pi entirely from the Android APK — natively, over USB-OTG or SSH — mirroring the capabilities the current web UI has:
+
+- run tool installs, updates, and uninstalls;
+- view live job output and logs;
+- view system information for the Pi;
+- start and stop VNC desktop sessions;
+- and the other management actions available in the web UI today.
+
+The goal is for the phone to be a complete control surface for a Pi, not just a flashing/provisioning tool. This is planned only — it has not been implemented or tested on any hardware.
+
+---
+
+## Supported hardware (planned)
+
+| # | Target | Status |
+|---|---|---|
+| 9 | Raspberry Pi Zero 2 W as a supported target | Planned — not implemented, untested |
+
+### 9. Raspberry Pi Zero 2 W
+The project currently targets the **Raspberry Pi Zero 1.3** (no onboard Wi-Fi/Bluetooth; USB-OTG only), and that remains the only target today. Support for the **Raspberry Pi Zero 2 W** is planned as an additional target. The Zero 2 W is a different, more capable board — quad-core CPU plus onboard Wi-Fi and Bluetooth, which the Zero 1.3 lacks — so support is **not** automatic. It has not been implemented or tested on Zero 2 W hardware, and the Zero 2 W should not be considered supported until it has been.
 
 ---
 
