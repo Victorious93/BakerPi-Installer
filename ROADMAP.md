@@ -46,12 +46,22 @@ Update a tool across the whole fleet at once, report per-device success/failure,
 |---|---|---|
 | 7 | Android APK wrapper | Planned — not implemented |
 | 8 | Pi Imager (SD-card flashing) | Planned — not implemented |
+| 8a | Phone → Pi over USB-OTG: flash → provision → manage | Planned — not implemented |
 
 ### 7. Android APK wrapper
-A native Android app — in line with the other Android apps in the Victorious fleet — wrapping the existing installer UI. The goal is to add native USB-OTG device control and offline use, going beyond the current "Add to Home Screen" PWA (which remains the supported Android option today).
+A native Android app — in line with the other Android apps in the Victorious fleet — wrapping the existing installer UI. The goal is to add native USB-OTG device control and offline use, going beyond the current "Add to Home Screen" PWA (which remains the supported Android option today). The intent is for the APK not only to manage a Pi that is already set up, but also to install BakerPi onto a fresh Pi directly from the phone (see items 8 and 8a).
 
 ### 8. Pi Imager
-SD-card flashing built into the app: pick a Raspberry Pi OS image and write it to an SD card over USB-OTG from a phone or PC, then hand off directly to BakerPi's tool installer — flash → provision in one flow.
+SD-card flashing built into the app: pick a Raspberry Pi OS image and write it to an SD card over USB-OTG from a phone or PC, then hand off directly to BakerPi's tool installer — flash → provision in one flow. In the Android APK this flashing step is meant to run on the phone itself, so no PC is needed.
+
+### 8a. Phone → Pi over USB-OTG: flash → provision → manage
+An end-to-end flow driven entirely from the Android APK, with the phone connected to the Pi over USB-OTG:
+
+1. **Flash** — write a Raspberry Pi OS image from the phone (item 8).
+2. **Provision** — once the Pi boots and is reachable from the phone over USB-OTG, install and configure BakerPi and the selected tools onto it from the APK.
+3. **Manage** — keep using the same app to install, update, or remove tools on that Pi afterwards.
+
+This extends the APK beyond managing a Pi that has already been configured elsewhere: the goal is to take a blank Pi to a working BakerPi setup using only an Android phone. As with everything on this page, this is planned only — it has not been implemented or tested on any hardware.
 
 ---
 
