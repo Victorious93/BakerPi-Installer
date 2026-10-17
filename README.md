@@ -170,7 +170,7 @@ bakerpi-installer.desktop
 
 ## Roadmap
 
-Planned directions (**not yet implemented or tested**) include multi-Pi fleet management (multi-device targeting, install profiles, inventory, drift detection, unattended provisioning, batch update/rollback) and a native Android app with built-in Pi Imager SD-card flashing that could flash and provision BakerPi onto a Pi over USB-OTG directly from the phone. See [ROADMAP.md](ROADMAP.md) for details.
+Planned directions (**not yet implemented or tested**) include multi-Pi fleet management (multi-device targeting, install profiles, inventory, drift detection, unattended provisioning, batch update/rollback) and a native Android app with built-in Pi Imager SD-card flashing that could flash and provision BakerPi onto a Pi over USB-OTG directly from the phone and then fully control the connected Pi from the phone, plus the Raspberry Pi Zero 2 W as an additional planned (untested) target alongside the current Pi Zero 1.3. See [ROADMAP.md](ROADMAP.md) for details.
 
 ## License
 
