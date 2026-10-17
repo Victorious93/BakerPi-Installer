@@ -11,6 +11,8 @@ on:
       - "tools/**"
       - "install_scripts/**"
       - ".github/workflows/build-installers.yml"
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
@@ -54,12 +56,13 @@ jobs:
           ARCH=x86_64 ./appimagetool AppDir dist/BakerPi_Installer-x86_64.AppImage || true
 
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: linux-build
           path: |
             dist/BakerPi_Installer
             dist/BakerPi_Installer-x86_64.AppImage
-          retention-days: 30
+          retention-days: 7
 
   build-windows:
     name: Windows EXE + Installer
@@ -90,9 +93,10 @@ jobs:
           & $iscc installer.iss
 
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: windows-build
           path: |
             dist/BakerPi_Installer.exe
             dist/installer/BakerPi_Installer_Setup.exe
-          retention-days: 30
+          retention-days: 7
