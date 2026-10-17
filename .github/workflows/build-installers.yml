@@ -22,9 +22,9 @@ jobs:
     name: Linux Binary + AppImage
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: pip
@@ -55,7 +55,7 @@ jobs:
             -O appimagetool && chmod +x appimagetool
           ARCH=x86_64 ./appimagetool AppDir dist/BakerPi_Installer-x86_64.AppImage || true
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         continue-on-error: true
         with:
           name: linux-build
@@ -68,9 +68,9 @@ jobs:
     name: Windows EXE + Installer
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: pip
@@ -92,7 +92,7 @@ jobs:
           }
           & $iscc installer.iss
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         continue-on-error: true
         with:
           name: windows-build
