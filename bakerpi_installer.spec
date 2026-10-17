@@ -10,6 +10,7 @@
 
 added_files = [
     ("server.py",       "."),
+    ("device_registry.py", "."),
     ("static",          "static"),
     ("tools",           "tools"),
     ("install_scripts", "install_scripts"),
@@ -40,6 +41,7 @@ a = Analysis(
         "starlette.responses",
         "anyio",
         "anyio._backends._asyncio",
+        "device_registry",
         "paramiko",
         "paramiko.transport",
         "cryptography",
