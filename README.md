@@ -168,6 +168,10 @@ bakerpi-installer.desktop
 - Prefer additive tools that fit authorized research; do not add excluded DoS/critical-infrastructure attack tooling.
 - Test both SSH mode and local mode when changing `server.py` job streaming.
 
+## Roadmap
+
+Planned directions (**not yet implemented or tested**) include multi-Pi fleet management (multi-device targeting, install profiles, inventory, drift detection, unattended provisioning, batch update/rollback) and a native Android app with built-in Pi Imager SD-card flashing. See [ROADMAP.md](ROADMAP.md) for details.
+
 ## License
 
 **No `LICENSE` file is present in this repository.** Add an SPDX license before treating the project as redistributable open source. Until then, default copyright remains with the author; clarify terms before accepting external contributions.
