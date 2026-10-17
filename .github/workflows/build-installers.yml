@@ -11,6 +11,8 @@ on:
       - "tools/**"
       - "install_scripts/**"
       - ".github/workflows/build-installers.yml"
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
