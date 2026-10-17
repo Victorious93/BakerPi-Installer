@@ -317,6 +317,63 @@ button { cursor: pointer; font: inherit; }
 #ssh-status.ok { color: var(--green); }
 #ssh-status.err { color: var(--red); }
 
+/* ── Devices Panel ──────────────────────────────────────────────── */
+#devices-panel {
+  display: none; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px 18px; margin-bottom: 16px;
+}
+#devices-panel.visible { display: block; }
+#devices-panel .panel-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; flex-wrap: wrap; }
+#devices-panel h4 { font-size: 13px; font-weight: 600; }
+#devices-panel .panel-sub { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+#devices-panel .spacer { flex: 1; }
+.device-row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius);
+  margin-bottom: 8px; background: var(--bg);
+}
+.device-row.selected { border-color: rgba(88,166,255,0.5); background: rgba(88,166,255,0.05); }
+.device-row .dev-check, .device-row .dev-radio { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+.device-row .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+.device-row .dot.ok { background: var(--green); }
+.device-row .dot.off { background: var(--red); }
+.dev-main { flex: 1; min-width: 160px; }
+.dev-name { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.dev-sub { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+.dev-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.dev-pass { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); padding: 4px 8px; font-size: 12px; width: 150px; }
+.badge.viewing { color: var(--accent); border-color: rgba(88,166,255,0.3); background: rgba(88,166,255,0.07); }
+.badge.dtype { color: var(--muted); border-color: var(--border); font-family: var(--mono); }
+.dev-col-head { display: flex; gap: 10px; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; padding: 0 10px 4px; }
+.dev-col-head span { width: 15px; text-align: center; }
+#device-form { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+#device-form.visible { display: block; }
+#device-form select {
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--text); padding: 6px 10px; font-size: 13px;
+}
+#device-form-status { font-size: 12px; }
+#device-form-status.err { color: var(--red); }
+#device-chip { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#sys-device { color: var(--text); font-weight: 500; }
+#view-device { font-size: 12px; color: var(--accent); }
+
+/* Per-device job logs */
+#term-tabs { display: none; gap: 6px; padding: 8px 18px 0; flex-wrap: wrap; flex-shrink: 0; border-bottom: 1px solid var(--border); }
+#term-tabs.visible { display: flex; }
+.term-tab {
+  background: none; border: 1px solid var(--border); border-bottom: none;
+  border-radius: 6px 6px 0 0; color: var(--muted); padding: 4px 12px; font-size: 12px;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.term-tab.active { color: var(--text); background: #010409; border-color: var(--accent); }
+.term-tab .tdot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.term-tab .tdot.running { background: var(--amber); animation: pulse 1.2s ease infinite; }
+.term-tab .tdot.done { background: var(--green); }
+.term-tab .tdot.failed { background: var(--red); }
+.term-pane { display: none; }
+.term-pane.active { display: block; }
+
 /* ── Responsive ─────────────────────────────────────────────────── */
 @media (max-width: 640px) {
   :root { --sidebar-w: 56px; }
@@ -325,6 +382,7 @@ button { cursor: pointer; font: inherit; }
   #main { padding: 14px 12px; }
   #grid { grid-template-columns: 1fr; }
   #sysinfo .sys-detail { display: none; }
+  #device-chip { max-width: 120px; }
   #search { width: 140px; }
   #topbar h1 span { display: none; }
 }
@@ -341,12 +399,14 @@ button { cursor: pointer; font: inherit; }
     <h1>BakerPi <span>Tool Installer</span></h1>
     <div id="sysinfo">
       <span><span id="conn-dot" class="dot error"></span><span id="conn-label" class="sys-detail">Disconnected</span></span>
+      <span id="sys-device" class="sys-detail" title="Device these stats belong to"></span>
       <span id="sys-host" class="sys-detail"></span>
       <span id="sys-mem" class="sys-detail"></span>
       <span id="sys-disk" class="sys-detail"></span>
       <span id="sys-temp" class="sys-detail"></span>
     </div>
     <div class="spacer"></div>
+    <button id="device-chip" class="btn btn-sm" onclick="toggleDevicesPanel()" title="Manage devices / choose target">🖧 <span id="device-chip-label">Devices</span></button>
     <button id="ssh-toggle-btn" class="btn btn-sm" onclick="toggleSSHPanel()">⚙ SSH</button>
     <button id="theme-btn" onclick="toggleTheme()">☀ Light</button>
   </header>
@@ -389,6 +449,47 @@ button { cursor: pointer; font: inherit; }
         </div>
       </div>
 
+      <!-- Devices panel -->
+      <div id="devices-panel">
+        <div class="panel-head">
+          <h4>Devices</h4>
+          <div class="spacer"></div>
+          <button class="btn btn-sm" onclick="showDeviceForm()">+ Add device</button>
+          <button class="btn btn-sm" onclick="toggleDevicesPanel()">Close</button>
+        </div>
+        <div class="panel-sub">
+          <b>Target</b> = devices that Install / Update / Remove run on (in parallel).
+          <b>Viewing</b> = the device whose installed-status and system info are shown.
+        </div>
+        <div class="dev-col-head"><span title="Target">T</span><span title="Viewing">V</span></div>
+        <div id="device-list"></div>
+        <div id="device-form">
+          <div class="form-row">
+            <div class="form-field"><label>Label</label><input id="df-label" placeholder="e.g. Bench Pi"></div>
+            <div class="form-field"><label>Type</label>
+              <select id="df-type" onchange="deviceFormTypeChanged()">
+                <option value="ssh">ssh</option>
+                <option value="usb-rndis">usb-rndis (SSH over USB)</option>
+                <option value="local">local (this device)</option>
+              </select>
+            </div>
+            <div class="form-field df-remote"><label>Host / IP</label><input id="df-host" placeholder="172.16.0.1"></div>
+            <div class="form-field df-remote"><label>User</label><input id="df-user" placeholder="root"></div>
+            <div class="form-field df-remote"><label>SSH port</label><input id="df-port" type="number" placeholder="22"></div>
+            <div class="form-field df-remote"><label>Key file (optional)</label><input id="df-key" placeholder="path to private key"></div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <button class="btn primary btn-sm" onclick="saveDevice()" id="df-save">Save</button>
+            <button class="btn btn-sm" onclick="hideDeviceForm()">Cancel</button>
+            <span id="device-form-status"></span>
+          </div>
+        </div>
+        <div class="vnc-note" style="margin-top:10px">
+          Passwords are never saved — they are kept in memory for this session only.
+          Multi-device support is untested on real Pi Zero hardware.
+        </div>
+      </div>
+
       <!-- SSH panel -->
       <div id="ssh-panel">
         <h4>Connect to Pi Zero via SSH (PC Mode)</h4>
@@ -410,6 +511,7 @@ button { cursor: pointer; font: inherit; }
         <div>
           <h2 id="cat-title">All Tools</h2>
           <div class="subtitle" id="cat-desc">Select tools to install on your Pi Zero 1.3</div>
+          <div class="subtitle" id="view-device"></div>
         </div>
         <div class="spacer"></div>
         <input id="search" type="search" placeholder="Search tools… ( / )" oninput="filterTools()" title="Press / to focus">
@@ -454,6 +556,7 @@ button { cursor: pointer; font: inherit; }
       <h3 id="modal-title">Installing…</h3>
       <button id="modal-close" onclick="closeModal()" aria-label="Close">×</button>
     </div>
+    <div id="term-tabs" role="tablist"></div>
     <div id="terminal" aria-label="Installation output"></div>
     <div id="modal-footer">
       <span id="modal-status">Waiting…</span>
@@ -472,13 +575,18 @@ let statusFilter = 'all';    // 'all' | 'installed' | 'not_installed'
 let selectedIds = new Set();
 let activeJobId = null;
 let sseSource = null;
+let devices = [];            // device registry (from /api/devices)
+let selectedDeviceIds = [];  // ordered; first = "viewing" (primary) device
+let editingDeviceId = null;  // null = adding a new device
+let connectingDeviceId = null;
 
 // ── Bootstrap ────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
   await loadCatalog();
+  await loadDevices();
   await refreshStatuses();
   await refreshSystem();
-  setInterval(refreshSystem, 15000);
+  setInterval(() => { loadDevices(); refreshSystem(); }, 15000);
   initTheme();
 });
 
@@ -702,6 +810,27 @@ async function installOne(toolId) {
   await startJob([toolId], 'install');
 }
 
+function targetIds() {
+  return selectedDeviceIds.length ? [...selectedDeviceIds] : ['default'];
+}
+
+function deviceLabel(id) {
+  return (devices.find(d => d.id === id) || {}).label || id;
+}
+
+function targetSummary() {
+  const ids = targetIds();
+  return ids.length === 1 ? deviceLabel(ids[0]) : ids.length + ' devices';
+}
+
+// Extra confirmation when an action fans out to several devices.
+function confirmMultiDevice(verb, count) {
+  const ids = targetIds();
+  if (ids.length < 2) return true;
+  const names = ids.map(deviceLabel).join('\n  • ');
+  return confirm(`${verb} ${count} tool${count > 1 ? 's' : ''} on ${ids.length} devices?\n\n  • ${names}\n\nThey run in parallel.`);
+}
+
 async function installSelected() {
   if (!selectedIds.size) return;
   await startJob([...selectedIds], 'install');
@@ -725,14 +854,20 @@ async function uninstallSelected() {
 }
 
 async function updateAllInstalled() {
-  openModal('Updating all installed tools…');
+  if (!confirmMultiDevice('Update all installed tools', 1)) return;
+  openModal('Updating all installed tools on ' + targetSummary() + '…');
   setModalStatus('Fetching installed list…', true);
   try {
-    const r = await fetch('/api/update-all', { method: 'POST' });
+    const r = await fetch('/api/update-all', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({device_ids: targetIds()})
+    });
     if (!r.ok) throw new Error(await r.text());
-    const { job_id, tool_ids } = await r.json();
+    const { job_id, tool_ids, devices: jobDevices, skipped_devices } = await r.json();
     activeJobId = job_id;
-    streamJob(job_id, tool_ids || [], 'update');
+    if (skipped_devices && skipped_devices.length)
+      showToast('Skipped (nothing installed / unreachable): ' + skipped_devices.map(d => d.label).join(', '), 'info');
+    streamJob(job_id, tool_ids || [], 'update', jobDevices);
   } catch (e) {
     appendTerminal('[ERROR] ' + e.message + '\n', 'error');
     setModalStatus('Error: ' + e.message, false);
@@ -748,7 +883,8 @@ async function uninstallOne(toolId) {
 
 async function startJob(toolIds, action) {
   const verb = action === 'update' ? 'Updating' : action === 'uninstall' ? 'Removing' : 'Installing';
-  openModal(verb + ' ' + toolIds.length + ' tool' + (toolIds.length > 1 ? 's' : '') + '…');
+  if (!confirmMultiDevice(verb, toolIds.length)) return;
+  openModal(verb + ' ' + toolIds.length + ' tool' + (toolIds.length > 1 ? 's' : '') + ' on ' + targetSummary() + '…');
   setModalStatus('Starting…', true);
 
   toolIds.forEach(id => {
@@ -765,12 +901,12 @@ async function startJob(toolIds, action) {
     const r = await fetch(endpoint, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({tool_ids: toolIds})
+      body: JSON.stringify({tool_ids: toolIds, device_ids: targetIds()})
     });
     if (!r.ok) throw new Error(await r.text());
-    const {job_id} = await r.json();
+    const {job_id, devices: jobDevices} = await r.json();
     activeJobId = job_id;
-    streamJob(job_id, toolIds, action);
+    streamJob(job_id, toolIds, action, jobDevices);
   } catch (e) {
     appendTerminal('[ERROR] ' + e.message + '\n', 'error');
     setModalStatus('Error: ' + e.message, false);
@@ -778,25 +914,31 @@ async function startJob(toolIds, action) {
   }
 }
 
-function streamJob(jobId, toolIds, action) {
-  const term = document.getElementById('terminal');
-  term.innerHTML = '';
+function streamJob(jobId, toolIds, action, jobDevices) {
+  setupTerminalPanes(jobDevices || [{id: 'default', label: deviceLabel('default')}]);
 
   if (sseSource) sseSource.close();
   sseSource = new EventSource('/api/jobs/' + jobId + '/stream');
 
   sseSource.onmessage = (e) => {
     const data = JSON.parse(e.data);
+    if (data.device_status) { setTabStatus(data.device, data.device_status); return; }
     if (data.done) {
       sseSource.close();
-      const doneMsg = action === 'update' ? 'Update complete.' : action === 'uninstall' ? 'Removal complete.' : 'Installation complete.';
+      let doneMsg = action === 'update' ? 'Update complete.' : action === 'uninstall' ? 'Removal complete.' : 'Installation complete.';
+      const results = Object.values(data.devices || {});
+      if (results.length > 1) {
+        const failed = results.filter(s => s === 'failed').length;
+        const base = doneMsg.replace(/ complete\.$/, '');
+        doneMsg = `${base} finished on ${results.length} devices` + (failed ? ` — ${failed} failed.` : ' — all succeeded.');
+      }
       setModalStatus(doneMsg, false);
       toolIds.forEach(id => resetBtn(id, action));
       clearSelection();
       setTimeout(refreshStatuses, 1500);
       return;
     }
-    if (data.line) appendTerminal(data.line);
+    if (data.line) appendTerminal(data.line, undefined, data.device);
   };
 
   sseSource.onerror = () => {
@@ -807,8 +949,43 @@ function streamJob(jobId, toolIds, action) {
   };
 }
 
-function appendTerminal(text, cls) {
+// One log pane per device; tabs only when a job targets several devices.
+function setupTerminalPanes(jobDevices) {
   const term = document.getElementById('terminal');
+  const tabs = document.getElementById('term-tabs');
+  term.innerHTML = '';
+  tabs.innerHTML = '';
+  jobDevices.forEach((d, i) => {
+    const pane = document.createElement('div');
+    pane.className = 'term-pane' + (i === 0 ? ' active' : '');
+    pane.dataset.dev = d.id;
+    term.appendChild(pane);
+    const tab = document.createElement('button');
+    tab.className = 'term-tab' + (i === 0 ? ' active' : '');
+    tab.dataset.dev = d.id;
+    tab.innerHTML = `<span class="tdot"></span>${escHtml(d.label)}`;
+    tab.onclick = () => showPane(d.id);
+    tabs.appendChild(tab);
+  });
+  tabs.classList.toggle('visible', jobDevices.length > 1);
+}
+
+function showPane(devId) {
+  document.querySelectorAll('.term-pane').forEach(p => p.classList.toggle('active', p.dataset.dev === devId));
+  document.querySelectorAll('.term-tab').forEach(t => t.classList.toggle('active', t.dataset.dev === devId));
+  const term = document.getElementById('terminal');
+  term.scrollTop = term.scrollHeight;
+}
+
+function setTabStatus(devId, status) {
+  const tab = document.querySelector(`.term-tab[data-dev="${CSS.escape(devId)}"] .tdot`);
+  if (tab) tab.className = 'tdot ' + status;
+}
+
+function appendTerminal(text, cls, devId) {
+  const root = document.getElementById('terminal');
+  const term = (devId && root.querySelector(`.term-pane[data-dev="${CSS.escape(devId)}"]`))
+    || root.querySelector('.term-pane') || root;
   const span = document.createElement('span');
   if (cls) span.className = 'terminal-line ' + cls;
   // Color based on content
@@ -817,7 +994,7 @@ function appendTerminal(text, cls) {
   else if (/^=+$|^Installing:|^Updating:|^\$/.test(text.trim())) span.className = 'terminal-line heading';
   span.textContent = text;
   term.appendChild(span);
-  term.scrollTop = term.scrollHeight;
+  root.scrollTop = root.scrollHeight;
 }
 
 function resetBtn(toolId, action) {
@@ -839,6 +1016,7 @@ function resetBtn(toolId, action) {
 function openModal(title) {
   document.getElementById('modal-title').textContent = title;
   document.getElementById('terminal').innerHTML = '';
+  document.getElementById('term-tabs').classList.remove('visible');
   document.getElementById('modal-overlay').classList.add('open');
 }
 
@@ -857,6 +1035,7 @@ async function refreshSystem() {
   try {
     const r = await fetch('/api/system');
     const d = await r.json();
+    document.getElementById('sys-device').textContent = d.device_label ? '🖧 ' + d.device_label : '';
     if (d.error) {
       setConnected(false);
       return;
@@ -907,6 +1086,189 @@ async function connectSSH() {
   } catch (e) {
     status.className = 'err';
     status.textContent = '✗ ' + e.message;
+  }
+}
+
+// ── Devices ──────────────────────────────────────────────────────────────────
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) {
+    let msg = r.statusText;
+    try { const j = await r.json(); msg = typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail); } catch {}
+    throw new Error(msg);
+  }
+  return r.json();
+}
+
+const jsonOpts = (method, body) => ({method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+
+async function loadDevices() {
+  try {
+    const d = await api('/api/devices');
+    devices = d.devices;
+    selectedDeviceIds = d.selected;
+    updateDeviceChip();
+    renderDevices();
+  } catch (e) { /* backend not ready / offline */ }
+}
+
+function updateDeviceChip() {
+  const primary = devices.find(d => d.id === selectedDeviceIds[0]);
+  const extra = selectedDeviceIds.length - 1;
+  document.getElementById('device-chip-label').textContent =
+    (primary ? primary.label : 'Devices') + (extra > 0 ? ` +${extra}` : '');
+  document.getElementById('device-chip').title =
+    'Targets: ' + selectedDeviceIds.map(deviceLabel).join(', ');
+  const view = document.getElementById('view-device');
+  if (view) view.textContent = primary ? '🖧 Showing status for: ' + primary.label : '';
+}
+
+function toggleDevicesPanel() {
+  document.getElementById('devices-panel').classList.toggle('visible');
+  renderDevices();
+}
+
+function renderDevices() {
+  const list = document.getElementById('device-list');
+  if (!list || !document.getElementById('devices-panel').classList.contains('visible')) return;
+  const ae = document.activeElement;
+  if (list.contains(ae) && ae.tagName === 'INPUT' && ae.type !== 'checkbox' && ae.type !== 'radio') return; // don't clobber typing
+  list.innerHTML = devices.map(d => {
+    const sel = selectedDeviceIds.includes(d.id);
+    const primary = selectedDeviceIds[0] === d.id;
+    const sub = d.type === 'local' ? 'this device (on-device)' : `${escHtml(d.user)}@${escHtml(d.host)}:${d.port}`;
+    const connectUi = d.type === 'local' ? '' : connectingDeviceId === d.id
+      ? `<input type="password" class="dev-pass" id="dp-${d.id}" placeholder="password (optional)" onkeydown="if(event.key==='Enter')connectDevice('${d.id}')">
+         <button class="btn primary btn-sm" onclick="connectDevice('${d.id}')">Connect</button>
+         <button class="btn btn-sm" onclick="connectingDeviceId=null;renderDevices()">Cancel</button>`
+      : `<button class="btn btn-sm" onclick="startConnect('${d.id}')">${d.connected ? '↻ Reconnect' : '⚡ Connect'}</button>`;
+    const editUi = d.builtin ? '' : `
+      <button class="btn btn-sm" onclick="showDeviceForm('${d.id}')">Edit</button>
+      <button class="btn btn-sm danger" onclick="removeDevice('${d.id}')">✕</button>`;
+    return `<div class="device-row ${sel ? 'selected' : ''}" id="dev-${d.id}">
+      <input type="checkbox" class="dev-check" ${sel ? 'checked' : ''} title="Target for install / update / remove" onchange="toggleTarget('${d.id}', this.checked)">
+      <input type="radio" class="dev-radio" name="dev-primary" ${primary ? 'checked' : ''} title="Show status / system info of this device" onchange="setPrimary('${d.id}')">
+      <span class="dot ${d.connected ? 'ok' : 'off'}" title="${d.connected ? 'Connected' : 'Not connected'}"></span>
+      <div class="dev-main">
+        <div class="dev-name">${escHtml(d.label)}
+          <span class="badge dtype">${escHtml(d.type)}</span>
+          ${d.builtin ? '<span class="badge builtin">CLI default</span>' : ''}
+          ${primary ? '<span class="badge viewing">viewing</span>' : ''}
+        </div>
+        <div class="dev-sub">${sub}</div>
+      </div>
+      <div class="dev-actions">${connectUi}${editUi}</div>
+    </div>`;
+  }).join('');
+  if (connectingDeviceId) { const el = document.getElementById('dp-' + connectingDeviceId); if (el) el.focus(); }
+}
+
+async function applySelection(ids) {
+  try {
+    const d = await api('/api/devices/selected', jsonOpts('PUT', {device_ids: ids}));
+    selectedDeviceIds = d.selected;
+  } catch (e) {
+    showToast('Device selection: ' + e.message, 'error');
+  }
+  await loadDevices();
+  await refreshStatuses();
+  await refreshSystem();
+}
+
+function toggleTarget(id, checked) {
+  let ids = [...selectedDeviceIds];
+  if (checked) { if (!ids.includes(id)) ids.push(id); }
+  else {
+    ids = ids.filter(x => x !== id);
+    if (!ids.length) { showToast('At least one device must stay selected.', 'info'); renderDevices(); return; }
+  }
+  applySelection(ids);
+}
+
+function setPrimary(id) {
+  applySelection([id, ...selectedDeviceIds.filter(x => x !== id)]);
+}
+
+function startConnect(id) {
+  connectingDeviceId = id;
+  renderDevices();
+}
+
+async function connectDevice(id) {
+  const pw = (document.getElementById('dp-' + id) || {}).value || null;
+  connectingDeviceId = null;
+  showToast('Connecting to ' + deviceLabel(id) + '…', 'info');
+  try {
+    await api(`/api/devices/${encodeURIComponent(id)}/connect`, jsonOpts('POST', {password: pw}));
+    showToast('Connected to ' + deviceLabel(id), 'success');
+  } catch (e) {
+    showToast('Connect failed: ' + e.message, 'error');
+  }
+  await loadDevices();
+  await refreshStatuses();
+  await refreshSystem();
+}
+
+function deviceFormTypeChanged() {
+  const t = document.getElementById('df-type').value;
+  document.querySelectorAll('.df-remote').forEach(el => el.style.display = t === 'local' ? 'none' : '');
+  document.getElementById('df-host').placeholder = t === 'usb-rndis' ? '172.16.0.1 (default)' : 'hostname or IP';
+}
+
+function showDeviceForm(id) {
+  editingDeviceId = id || null;
+  const d = devices.find(x => x.id === id) || {};
+  document.getElementById('df-label').value = d.label || '';
+  document.getElementById('df-type').value = d.type || 'ssh';
+  document.getElementById('df-host').value = d.type === 'local' ? '' : (d.host || '');
+  document.getElementById('df-user').value = d.user || '';
+  document.getElementById('df-port').value = d.port && id ? d.port : '';
+  document.getElementById('df-key').value = d.key_file || '';
+  document.getElementById('df-save').textContent = id ? 'Save changes' : 'Add device';
+  document.getElementById('device-form-status').textContent = '';
+  document.getElementById('devices-panel').classList.add('visible');
+  document.getElementById('device-form').classList.add('visible');
+  deviceFormTypeChanged();
+  document.getElementById('df-label').focus();
+}
+
+function hideDeviceForm() {
+  editingDeviceId = null;
+  document.getElementById('device-form').classList.remove('visible');
+}
+
+async function saveDevice() {
+  const status = document.getElementById('device-form-status');
+  const val = id => document.getElementById(id).value.trim();
+  const body = {
+    label: val('df-label'), type: val('df-type'), host: val('df-host'),
+    user: val('df-user'), key_file: val('df-key'),
+  };
+  const port = val('df-port');
+  body.port = port ? parseInt(port, 10) : null;
+  status.className = '';
+  status.textContent = 'Saving…';
+  try {
+    if (editingDeviceId) await api('/api/devices/' + encodeURIComponent(editingDeviceId), jsonOpts('PUT', body));
+    else await api('/api/devices', jsonOpts('POST', body));
+    hideDeviceForm();
+    await loadDevices();
+    showToast('Device saved', 'success');
+  } catch (e) {
+    status.className = 'err';
+    status.textContent = '✗ ' + e.message;
+  }
+}
+
+async function removeDevice(id) {
+  if (!confirm(`Remove device "${deviceLabel(id)}" from the inventory?\n\nThis only forgets the entry; nothing is changed on the Pi.`)) return;
+  try {
+    await api('/api/devices/' + encodeURIComponent(id), {method: 'DELETE'});
+    await loadDevices();
+    await refreshStatuses();
+    await refreshSystem();
+  } catch (e) {
+    showToast('Remove failed: ' + e.message, 'error');
   }
 }
 

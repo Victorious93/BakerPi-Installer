@@ -37,6 +37,7 @@ SSH_TYPES = ("ssh", "usb-rndis")
 USB_RNDIS_DEFAULT_HOST = "172.16.0.1"  # Pi Zero gadget address used by BakerPi
 REGISTRY_VERSION = 1
 
+_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 _HOST_RE = re.compile(r"^[A-Za-z0-9._:%\-\[\]]+$")
 _MAX_LABEL = 64
 _MAX_HOST = 255
@@ -187,7 +188,7 @@ class DeviceRegistry:
             seen = {DEFAULT_DEVICE_ID}
             for raw in data.get("devices", []):
                 dev = validate_device_fields(raw, str(raw.get("id") or ""))
-                if not dev.id or dev.id in seen:
+                if not _ID_RE.match(dev.id) or dev.id in seen:
                     raise ValueError(f"missing or duplicate device id: {dev.id!r}")
                 seen.add(dev.id)
                 devices.append(dev)

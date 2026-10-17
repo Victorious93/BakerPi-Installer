@@ -284,3 +284,10 @@ def test_default_path_is_outside_repo_per_platform(tmp_path):
 def test_env_override_for_path(tmp_path):
     p = default_devices_path({"BAKERPI_DEVICES_FILE": str(tmp_path / "x.json")}, "linux")
     assert p == tmp_path / "x.json"
+
+
+def test_unsafe_ids_in_file_treated_as_corrupt(tmp_path):
+    dev = {"id": "<img src=x>", "label": "A", "type": "ssh", "host": "192.0.2.81"}
+    (tmp_path / "devices.json").write_text(json.dumps(
+        {"version": 1, "devices": [dev], "selected": []}))
+    assert [d.id for d in make(tmp_path).list()] == [DEFAULT_DEVICE_ID]
