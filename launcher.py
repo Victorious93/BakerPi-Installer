@@ -140,6 +140,8 @@ def main() -> None:
     parser.add_argument("--port",        type=int, default=22)
     parser.add_argument("--password",    default=None)
     parser.add_argument("--key-file",    default=None, dest="key_file")
+    parser.add_argument("--devices-file", default=None, dest="devices_file",
+                        help="Device registry JSON (default: per-user config dir)")
     parser.add_argument("--server-port", type=int,    default=0, dest="server_port",
                         help="Web UI port (0 = pick automatically)")
     args = parser.parse_args()
@@ -148,8 +150,10 @@ def main() -> None:
 
     # Configure and optionally pre-connect the backend
     import server as srv
-    srv.config["mode"] = args.mode
-    srv.config["host"] = args.host
+    srv.config.update(mode=args.mode, host=args.host, user=args.user,
+                      port=args.port, key_file=args.key_file)
+    if args.devices_file:
+        srv.registry.path = Path(args.devices_file).expanduser()
 
     if args.mode == "ssh":
         try:
