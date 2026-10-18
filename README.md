@@ -28,6 +28,7 @@ BakerPi Tool Installer is a cross-platform installer UI for **BakerPi**, the [P4
 - **Responsive, installable PWA**: phone portrait through desktop
 - **Two modes, one codebase**: SSH from a PC, or run directly on the Pi
 - **VNC control**: start/stop Kali/Parrot desktop sessions from the UI
+- **Device inventory & targeting** *(new, untested on real hardware — see [Multiple devices](#multiple-devices-device-inventory--targeting))*: keep a list of Pi targets, pick the active one, or run installs on several in parallel
 
 > **Security note:** Tools such as nmap, aircrack-ng and Metasploit are for authorized pentesting, red-team work and research only. DoS flood tools and medical/critical-infrastructure attack tools are excluded from the catalog.
 
@@ -94,6 +95,56 @@ sudo python3 server.py --mode local --no-browser               # on-device
 
 Use `--server-port` to change the web UI port (default `8080`).
 
+### Multiple devices (device inventory & targeting)
+
+> **Status: UNTESTED on real hardware.** This feature was developed and checked with unit/API tests (fake command execution) and a UI walkthrough against a fake backend only. It has **not** been run against a real Raspberry Pi Zero (or any real SSH target). Expect rough edges and please report them.
+
+The app still starts with a single target taken from the command line, exactly as before. On top of that you can keep an inventory of Pi targets and choose where actions run.
+
+**Concepts**
+
+| Term | Meaning |
+|---|---|
+| **Default device** | Built-in entry (`id: default`) built from `--mode/--host/--user/--port/--key-file`. Always present, never saved to disk, cannot be edited or removed. With no config, this is the only device, so existing usage is unchanged. |
+| **Registry** | Extra devices you add: `id`, `label`, connection `type` (`ssh`, `usb-rndis`, `local`), `host`, `user`, SSH `port` (plus an optional key-file *path*). `usb-rndis` is SSH over the USB gadget link and defaults the host to `172.16.0.1`. |
+| **Target** | Devices that Install / Update / Remove / Update All run on. Several targets run **in parallel**, one job task per device. |
+| **Viewing** | The first selected device. The tool grid's installed-status, the system-info bar and VNC status follow it. |
+
+**In the UI:** click the device chip in the top bar to open the **Devices** panel. Add / edit / remove devices, tick **T** (target) for one or more devices, and pick **V** (viewing) with the radio. Each row has a **Connect** button for SSH devices (optional password, kept in memory only; key/agent auth also works). Multi-device jobs show one log tab per device with a status dot, and the system-info bar and job title name the device they belong to.
+
+**Where it is stored:** `devices.json` in a per-user config directory (never in the repo):
+
+| OS | Path |
+|---|---|
+| Linux | `$XDG_CONFIG_HOME/BakerPi-Installer/devices.json` (default `~/.config/...`) |
+| macOS | `~/Library/Application Support/BakerPi-Installer/devices.json` |
+| Windows | `%APPDATA%\BakerPi-Installer\devices.json` |
+
+Override with `--devices-file PATH` (`server.py` and `launcher.py`) or `BAKERPI_DEVICES_FILE`. The file is written with mode `0600`, holds no passwords, and `devices.json` is in `.gitignore`. An unreadable file is moved to `devices.json.bad` and ignored.
+
+**API** (all optional-target parameters fall back to the current selection, which falls back to the default device):
+
+| Endpoint | Notes |
+|---|---|
+| `GET/POST /api/devices` | list / add |
+| `GET/PUT/DELETE /api/devices/{id}` | read / partial update / remove (`default` is read-only) |
+| `GET/PUT /api/devices/selected` | read / set `{"device_ids": [...]}` (first = viewing) |
+| `POST /api/devices/{id}/connect` | open SSH for a device; body `{"password"?, "key_file"?}` |
+| `POST /api/install`, `/api/update`, `/api/uninstall` | body accepts `device_id` or `device_ids` |
+| `POST /api/update-all` | optional body `{device_ids}`; per-device installed list, devices with nothing installed are reported as `skipped_devices` |
+| `GET /api/tools`, `/api/tools/{id}/status`, `/api/system`, `/api/services/vnc/*` | optional `?device_id=` (VNC start: `device_id` in body) |
+| `GET /api/jobs/{id}`, `/api/jobs/{id}/stream` | per-device `devices[]` status/logs; SSE events carry `device`, `line`, `device_status`, and a final `done` with a per-device summary |
+
+The legacy `POST /api/ssh/connect` (the **⚙ SSH** panel) still works and re-points the default device.
+
+**Known limits / TODO**
+
+- Status views (tool installed-state, system info, VNC) are single-device (the *viewing* device); there is no side-by-side fleet status table yet.
+- No per-device concurrency limit, retry, or cancel for running jobs; a failed device does not stop the others.
+- No saved passwords, SSH host-key pinning (host keys are auto-accepted, as before), device discovery, or groups/tags yet.
+- Jobs and logs are in memory only (lost on restart).
+- Tests (`tests/`) cover the registry logic and API targeting with faked commands only — no real SSH or hardware.
+
 ### Android (PWA)
 
 1. With the Pi running `run_ondevice.sh`, open Chrome at `http://172.16.0.1:8080`.
@@ -152,7 +203,9 @@ Windows installers use Inno Setup (`installer.iss`). CI builds are defined in `.
 ## Project structure
 
 ```text
-server.py              FastAPI app (catalog, install jobs, SSH, VNC, system info)
+server.py              FastAPI app (catalog, install jobs, SSH, VNC, system info, device API)
+device_registry.py     Device inventory: persisted Pi targets + selection (stdlib only)
+tests/                 pytest suite (no hardware needed)
 launcher.py            pywebview native shell around the same UI
 static/                Web UI (index.html), PWA manifest, logo, favicon
 tools/catalog.json     Tool definitions (81 tools, 13 categories)
@@ -162,11 +215,21 @@ build_app.*            PyInstaller packaging
 bakerpi-installer.desktop
 ```
 
+## Tests
+
+```bash
+pip3 install -r requirements-dev.txt
+python3 -m pytest
+```
+
+Tests need no Pi, SSH server or network. CI (`build-installers.yml`) currently only builds the installers and does not run them.
+
 ## Contributing
 
 - Keep catalog entries accurate (`check_cmd` / packages / scripts).
 - Prefer additive tools that fit authorized research; do not add excluded DoS/critical-infrastructure attack tooling.
 - Test both SSH mode and local mode when changing `server.py` job streaming.
+- Commits must carry a DCO sign-off (`git commit -s`).
 
 ## Roadmap
 
