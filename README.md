@@ -16,7 +16,32 @@
 
 BakerPi Tool Installer is a cross-platform installer UI for **BakerPi**, the [P4wnP1 A.L.O.A.](https://github.com/Victorious93/P4wnP1_aloa) fork adapted for the **Raspberry Pi Zero 1.3** (no built-in Wi-Fi/Bluetooth; USB OTG only). A single FastAPI backend (`server.py`) serves a responsive web UI that can run in a native window (`launcher.py`, via pywebview), in a browser over SSH, or on the Pi itself.
 
+In short: it runs on your PC (or on the Pi itself), serves a local web UI, and installs/updates/removes catalog tools on a Raspberry Pi by running shell commands over SSH (or locally in on-device mode).
+
 *Screenshots coming soon.*
+
+### Place in the Victorious fleet
+
+BakerPi Installer is a **host-side desktop/CLI tool** in Don Victor's Victorious fleet. It is not a service running inside a Pi payload and not a mobile app. The same codebase has three entry points:
+
+- `server.py` / `run_pc.*` / `run_ondevice.sh`: a FastAPI server exposing an HTTP web UI and JSON API (default port `8080`, change with `--server-port`).
+- `launcher.py` / `run_app.*`: the same server run in-process and shown in a native pywebview window. It binds `127.0.0.1` only and picks a free port starting at `8080` unless `--server-port` is given.
+- Outbound to the Pi: Paramiko SSH to the Pi (default `root@172.16.0.1`, reached over USB RNDIS/OTG), or direct local command execution with `--mode local` when running on the Pi.
+
+| | |
+|---|---|
+| **Connection class** | **`HOST_PROCESS_TOOL`** (localhost HTTP + CLI). Confirmed against `server.py`, `launcher.py` and the `run_*` scripts: a host process serving HTTP plus command-line entry points, with SSH/USB RNDIS as its outbound link to the device. |
+| **Ships today** | Desktop binaries only: Linux AppImage and Windows EXE/installer (built by CI; no release published yet, see [Install](#install)). |
+| **Android** | **No APK ships today.** The only Android option is the PWA in [Android (PWA)](#android-pwa). A native Android app is a roadmap item and is **not implemented** (see [ROADMAP.md](ROADMAP.md)). |
+
+Network exposure to be aware of: `server.py` currently listens on `0.0.0.0` (all interfaces), not just localhost, and the API has no authentication. This is deliberate for on-device mode (phone/PC reach the Pi at `http://172.16.0.1:8080`), but in PC mode it means other hosts on your network can reach the UI. Only `launcher.py` is localhost-only. Run on trusted networks only.
+
+#### Signing (planned / future note)
+
+Because no APK ships today, **there is no Android app-signing key in this repository** (no keystore or key files are tracked), and none of the current CI workflows perform code signing on the Linux or Windows binaries. For when the planned Android app lands (**not implemented yet**), the fleet policy is:
+
+- Debug builds use the app's own fixed debug key.
+- Any release signing key must live **only in CI secrets** and must never be committed to the repository.
 
 ## Key features
 
@@ -68,13 +93,15 @@ pip3 install -r requirements.txt
 ### Native desktop app (recommended on PC)
 
 ```bash
-./run_app.sh          # Linux / macOS
-run_app.bat           # Windows
+./run_app.sh --mode ssh          # Linux / macOS: SSH to the Pi (172.16.0.1)
+run_app.bat --mode ssh           # Windows
 
 # or directly
 python3 launcher.py --mode ssh --host 172.16.0.1 --user root   # SSH to Pi over USB
 sudo python3 launcher.py --mode local                          # on the Pi
 ```
+
+> **Note:** `launcher.py` (and therefore `run_app.*`) defaults to `--mode local`, which runs install commands on the machine it is started on. The comments inside `run_app.sh` / `run_app.bat` say the default is SSH, but the code does not; pass `--mode ssh` explicitly when driving a Pi from a PC. `run_pc.*` always uses SSH mode.
 
 ### Web server mode (headless / SSH)
 
