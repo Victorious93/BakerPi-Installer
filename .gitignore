@@ -23,4 +23,10 @@ venv/
 devices.json
 devices.json.bad
 *.devices.json
+
+# Fleet install profiles (user-specific; lives in the per-user config dir by
+# default, but never commit one if you point --profiles-file into the repo)
+profiles.json
+profiles.json.bad
+*.profiles.json
 .pytest_cache/

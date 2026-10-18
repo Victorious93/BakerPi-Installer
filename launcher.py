@@ -142,6 +142,8 @@ def main() -> None:
     parser.add_argument("--key-file",    default=None, dest="key_file")
     parser.add_argument("--devices-file", default=None, dest="devices_file",
                         help="Device registry JSON (default: per-user config dir)")
+    parser.add_argument("--profiles-file", default=None, dest="profiles_file",
+                        help="Fleet install profiles JSON (default: per-user config dir)")
     parser.add_argument("--server-port", type=int,    default=0, dest="server_port",
                         help="Web UI port (0 = pick automatically)")
     args = parser.parse_args()
@@ -154,6 +156,8 @@ def main() -> None:
                       port=args.port, key_file=args.key_file)
     if args.devices_file:
         srv.registry.path = Path(args.devices_file).expanduser()
+    if args.profiles_file:
+        srv.profiles.path = Path(args.profiles_file).expanduser()
 
     if args.mode == "ssh":
         try:
