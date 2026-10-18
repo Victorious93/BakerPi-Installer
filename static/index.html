@@ -318,15 +318,15 @@ button { cursor: pointer; font: inherit; }
 #ssh-status.err { color: var(--red); }
 
 /* ── Devices Panel ──────────────────────────────────────────────── */
-#devices-panel {
+#devices-panel, #profiles-panel {
   display: none; background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 16px 18px; margin-bottom: 16px;
 }
-#devices-panel.visible { display: block; }
-#devices-panel .panel-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; flex-wrap: wrap; }
-#devices-panel h4 { font-size: 13px; font-weight: 600; }
-#devices-panel .panel-sub { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
-#devices-panel .spacer { flex: 1; }
+#devices-panel.visible, #profiles-panel.visible { display: block; }
+#devices-panel .panel-head, #profiles-panel .panel-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; flex-wrap: wrap; }
+#devices-panel h4, #profiles-panel h4 { font-size: 13px; font-weight: 600; }
+#devices-panel .panel-sub, #profiles-panel .panel-sub { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+#devices-panel .spacer, #profiles-panel .spacer { flex: 1; }
 .device-row {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius);
@@ -354,6 +354,37 @@ button { cursor: pointer; font: inherit; }
 }
 #device-form-status { font-size: 12px; }
 #device-form-status.err { color: var(--red); }
+/* ── Profiles Panel ─────────────────────────────────────────────── */
+.profile-row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius);
+  margin-bottom: 8px; background: var(--bg);
+}
+.profile-row .prof-main { flex: 1; min-width: 200px; }
+.profile-row .prof-name { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.profile-row .prof-desc { font-size: 12px; color: var(--muted); }
+.profile-row .prof-tools { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+.profile-row .prof-warn { font-size: 11px; color: var(--red); }
+#profile-form { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+#profile-form.visible { display: block; }
+#profile-form textarea {
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--text); padding: 6px 10px; font-size: 13px; min-width: 260px; resize: vertical;
+}
+#pf-tool-search {
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--text); padding: 5px 10px; font-size: 12px; width: 220px;
+}
+#pf-tools {
+  max-height: 260px; overflow-y: auto; border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 6px 10px; margin: 6px 0 10px; background: var(--bg);
+}
+#pf-tools .pf-cat { font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); margin: 8px 0 4px; }
+#pf-tools label { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 2px 0; cursor: pointer; }
+#pf-tools input { accent-color: var(--accent); }
+#pf-order { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-bottom: 8px; }
+#profile-form-status { font-size: 12px; }
+#profile-form-status.err { color: var(--red); }
 #device-chip { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #sys-device { color: var(--text); font-weight: 500; }
 #view-device { font-size: 12px; color: var(--accent); }
@@ -406,6 +437,7 @@ button { cursor: pointer; font: inherit; }
       <span id="sys-temp" class="sys-detail"></span>
     </div>
     <div class="spacer"></div>
+    <button id="profiles-btn" class="btn btn-sm" onclick="toggleProfilesPanel()" title="Fleet install profiles: named toolsets you can apply to devices">📦 Profiles</button>
     <button id="device-chip" class="btn btn-sm" onclick="toggleDevicesPanel()" title="Manage devices / choose target">🖧 <span id="device-chip-label">Devices</span></button>
     <button id="ssh-toggle-btn" class="btn btn-sm" onclick="toggleSSHPanel()">⚙ SSH</button>
     <button id="theme-btn" onclick="toggleTheme()">☀ Light</button>
@@ -487,6 +519,44 @@ button { cursor: pointer; font: inherit; }
         <div class="vnc-note" style="margin-top:10px">
           Passwords are never saved — they are kept in memory for this session only.
           Multi-device support is untested on real Pi Zero hardware.
+        </div>
+      </div>
+
+      <!-- Profiles panel -->
+      <div id="profiles-panel">
+        <div class="panel-head">
+          <h4>Install profiles</h4>
+          <div class="spacer"></div>
+          <button class="btn btn-sm" onclick="showProfileForm()">+ New profile</button>
+          <button class="btn btn-sm" onclick="toggleProfilesPanel()">Close</button>
+        </div>
+        <div class="panel-sub">
+          A profile is a named set of tools. <b>Apply</b> installs every tool in it, in order, on the
+          current target device(s) (<span id="profiles-targets">the selected devices</span>). Choose targets in the Devices panel.
+        </div>
+        <div id="profile-list"></div>
+        <div id="profile-form">
+          <div class="form-row">
+            <div class="form-field"><label>Name</label><input id="pf-name" placeholder="e.g. Recon kit" maxlength="64"></div>
+            <div class="form-field"><label>Description (optional)</label><textarea id="pf-desc" rows="1" maxlength="500" placeholder="What is this set for?"></textarea></div>
+          </div>
+          <div class="form-row" style="align-items:center;margin-bottom:0">
+            <div class="form-field"><label>Tools <span id="pf-count"></span></label></div>
+            <input id="pf-tool-search" type="search" placeholder="Filter tools…" oninput="renderProfileTools()">
+            <button class="btn btn-sm" onclick="profileUseSelection()" title="Replace the picked tools with the tools currently selected in the grid">Use grid selection</button>
+            <button class="btn btn-sm" onclick="profilePickedClear()">Clear</button>
+          </div>
+          <div id="pf-tools"></div>
+          <div id="pf-order"></div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <button class="btn primary btn-sm" onclick="saveProfile()" id="pf-save">Save</button>
+            <button class="btn btn-sm" onclick="hideProfileForm()">Cancel</button>
+            <span id="profile-form-status"></span>
+          </div>
+        </div>
+        <div class="vnc-note" style="margin-top:10px">
+          Profiles hold tool ids only (no passwords or hosts) and are stored per user, outside the repo.
+          Profile apply is untested on real Pi Zero hardware.
         </div>
       </div>
 
@@ -579,11 +649,15 @@ let devices = [];            // device registry (from /api/devices)
 let selectedDeviceIds = [];  // ordered; first = "viewing" (primary) device
 let editingDeviceId = null;  // null = adding a new device
 let connectingDeviceId = null;
+let profiles = [];           // fleet install profiles (from /api/profiles)
+let editingProfileId = null; // null = creating a new profile
+let pickedTools = [];        // ordered tool ids ticked in the profile form
 
 // ── Bootstrap ────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
   await loadCatalog();
   await loadDevices();
+  await loadProfiles();
   await refreshStatuses();
   await refreshSystem();
   setInterval(() => { loadDevices(); refreshSystem(); }, 15000);
@@ -1109,6 +1183,7 @@ async function loadDevices() {
     selectedDeviceIds = d.selected;
     updateDeviceChip();
     renderDevices();
+    renderProfiles();
   } catch (e) { /* backend not ready / offline */ }
 }
 
@@ -1269,6 +1344,170 @@ async function removeDevice(id) {
     await refreshSystem();
   } catch (e) {
     showToast('Remove failed: ' + e.message, 'error');
+  }
+}
+
+// ── Profiles ─────────────────────────────────────────────────────────────────
+function toolName(id) {
+  const t = toolsData[id];
+  if (t) return t.name;
+  for (const c of (catalog ? catalog.categories : [])) {
+    const f = c.tools.find(x => x.id === id);
+    if (f) return f.name;
+  }
+  return id;
+}
+
+async function loadProfiles() {
+  try {
+    const d = await api('/api/profiles');
+    profiles = d.profiles;
+    renderProfiles();
+  } catch (e) { /* backend not ready / offline */ }
+}
+
+function toggleProfilesPanel() {
+  document.getElementById('profiles-panel').classList.toggle('visible');
+  renderProfiles();
+}
+
+function renderProfiles() {
+  const list = document.getElementById('profile-list');
+  const panel = document.getElementById('profiles-panel');
+  if (!list || !panel.classList.contains('visible')) return;
+  document.getElementById('profiles-targets').textContent = targetIds().map(deviceLabel).join(', ');
+  if (!profiles.length) {
+    list.innerHTML = '<div class="vnc-note">No profiles yet. Create one to reuse a toolset across devices.</div>';
+    return;
+  }
+  list.innerHTML = profiles.map(p => {
+    const names = p.tool_ids.map(id => escHtml(toolName(id))).join(' → ');
+    const warn = p.unknown_tool_ids && p.unknown_tool_ids.length
+      ? `<div class="prof-warn">Not in catalog (edit to fix; cannot be applied): ${p.unknown_tool_ids.map(escHtml).join(', ')}</div>` : '';
+    return `<div class="profile-row" id="prof-${escHtml(p.id)}">
+      <div class="prof-main">
+        <div class="prof-name">${escHtml(p.name)} <span class="badge dtype">${p.tool_ids.length} tool${p.tool_ids.length === 1 ? '' : 's'}</span></div>
+        ${p.description ? `<div class="prof-desc">${escHtml(p.description)}</div>` : ''}
+        <div class="prof-tools">${names}</div>
+        ${warn}
+      </div>
+      <div class="dev-actions">
+        <button class="btn primary btn-sm" onclick="applyProfile('${p.id}')" ${warn ? 'disabled' : ''}
+          title="Install this profile's tools on the selected device(s)">⬇ Apply to selected device(s)</button>
+        <button class="btn btn-sm" onclick="showProfileForm('${p.id}')">Edit</button>
+        <button class="btn btn-sm danger" onclick="removeProfile('${p.id}')">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function showProfileForm(id) {
+  editingProfileId = id || null;
+  const p = profiles.find(x => x.id === id) || {};
+  document.getElementById('pf-name').value = p.name || '';
+  document.getElementById('pf-desc').value = p.description || '';
+  document.getElementById('pf-tool-search').value = '';
+  pickedTools = [...(p.tool_ids || [])];
+  document.getElementById('pf-save').textContent = id ? 'Save changes' : 'Create profile';
+  document.getElementById('profile-form-status').textContent = '';
+  document.getElementById('profiles-panel').classList.add('visible');
+  document.getElementById('profile-form').classList.add('visible');
+  renderProfiles();
+  renderProfileTools();
+  document.getElementById('pf-name').focus();
+}
+
+function hideProfileForm() {
+  editingProfileId = null;
+  document.getElementById('profile-form').classList.remove('visible');
+}
+
+function renderProfileTools() {
+  const box = document.getElementById('pf-tools');
+  if (!catalog) { box.textContent = 'Catalog not loaded.'; return; }
+  const q = document.getElementById('pf-tool-search').value.trim().toLowerCase();
+  box.innerHTML = catalog.categories.map(c => {
+    const tools = c.tools.filter(t => !q || (t.name + ' ' + t.id + ' ' + (t.tags || []).join(' ')).toLowerCase().includes(q));
+    if (!tools.length) return '';
+    return `<div class="pf-cat">${escHtml(c.name)}</div>` + tools.map(t =>
+      `<label><input type="checkbox" value="${escHtml(t.id)}" ${pickedTools.includes(t.id) ? 'checked' : ''}
+         onchange="toggleProfileTool(this.value, this.checked)"> ${escHtml(t.name)}${t.builtin ? ' <span class="badge builtin">built-in</span>' : ''}</label>`).join('');
+  }).join('') || '<div class="vnc-note">No tools match.</div>';
+  updateProfilePicked();
+}
+
+function updateProfilePicked() {
+  document.getElementById('pf-count').textContent = `(${pickedTools.length} picked)`;
+  document.getElementById('pf-order').textContent = pickedTools.length
+    ? 'Install order: ' + pickedTools.map(toolName).join(' → ') : 'No tools picked yet.';
+}
+
+function toggleProfileTool(id, checked) {
+  if (checked) { if (!pickedTools.includes(id)) pickedTools.push(id); }
+  else pickedTools = pickedTools.filter(x => x !== id);
+  updateProfilePicked();
+}
+
+function profileUseSelection() {
+  pickedTools = [...selectedIds];
+  renderProfileTools();
+}
+
+function profilePickedClear() {
+  pickedTools = [];
+  renderProfileTools();
+}
+
+async function saveProfile() {
+  const status = document.getElementById('profile-form-status');
+  const body = {
+    name: document.getElementById('pf-name').value.trim(),
+    description: document.getElementById('pf-desc').value.trim(),
+    tool_ids: [...pickedTools],
+  };
+  status.className = '';
+  status.textContent = 'Saving…';
+  try {
+    if (editingProfileId) await api('/api/profiles/' + encodeURIComponent(editingProfileId), jsonOpts('PUT', body));
+    else await api('/api/profiles', jsonOpts('POST', body));
+    hideProfileForm();
+    await loadProfiles();
+    showToast('Profile saved', 'success');
+  } catch (e) {
+    status.className = 'err';
+    status.textContent = '✗ ' + e.message;
+  }
+}
+
+async function removeProfile(id) {
+  const p = profiles.find(x => x.id === id);
+  if (!confirm(`Delete profile "${p ? p.name : id}"?\n\nThis only removes the saved set; nothing is changed on any Pi.`)) return;
+  try {
+    await api('/api/profiles/' + encodeURIComponent(id), {method: 'DELETE'});
+    if (editingProfileId === id) hideProfileForm();
+    await loadProfiles();
+  } catch (e) {
+    showToast('Delete failed: ' + e.message, 'error');
+  }
+}
+
+async function applyProfile(id) {
+  const p = profiles.find(x => x.id === id);
+  if (!p) return;
+  const ids = targetIds();
+  const names = ids.map(deviceLabel).join('\n  • ');
+  const tools = p.tool_ids.map(toolName).join('\n  • ');
+  if (!confirm(`Apply profile "${p.name}" to ${ids.length} device${ids.length > 1 ? 's' : ''}?\n\nTools (installed in order):\n  • ${tools}\n\nDevices${ids.length > 1 ? ' (run in parallel)' : ''}:\n  • ${names}`)) return;
+  openModal(`Applying profile "${p.name}" on ${targetSummary()}…`);
+  setModalStatus('Starting…', true);
+  try {
+    const {job_id, devices: jobDevices, tool_ids} = await api(
+      '/api/profiles/' + encodeURIComponent(id) + '/apply', jsonOpts('POST', {device_ids: ids}));
+    activeJobId = job_id;
+    streamJob(job_id, tool_ids || p.tool_ids, 'install', jobDevices);
+  } catch (e) {
+    appendTerminal('[ERROR] ' + e.message + '\n', 'error');
+    setModalStatus('Error: ' + e.message, false);
   }
 }
 
