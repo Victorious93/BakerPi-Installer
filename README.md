@@ -29,6 +29,7 @@ BakerPi Tool Installer is a cross-platform installer UI for **BakerPi**, the [P4
 - **Two modes, one codebase**: SSH from a PC, or run directly on the Pi
 - **VNC control**: start/stop Kali/Parrot desktop sessions from the UI
 - **Device inventory & targeting** *(new, untested on real hardware — see [Multiple devices](#multiple-devices-device-inventory--targeting))*: keep a list of Pi targets, pick the active one, or run installs on several in parallel
+- **Fleet install profiles** *(new, untested on real hardware — see [Fleet install profiles](#fleet-install-profiles))*: save a named set of tools once and apply it to one or many devices in a single action
 
 > **Security note:** Tools such as nmap, aircrack-ng and Metasploit are for authorized pentesting, red-team work and research only. DoS flood tools and medical/critical-infrastructure attack tools are excluded from the catalog.
 
@@ -145,6 +146,48 @@ The legacy `POST /api/ssh/connect` (the **⚙ SSH** panel) still works and re-po
 - Jobs and logs are in memory only (lost on restart).
 - Tests (`tests/`) cover the registry logic and API targeting with faked commands only — no real SSH or hardware.
 
+### Fleet install profiles
+
+> **Status: UNTESTED on real hardware.** Like the device targeting it builds on, this was developed and checked with unit/API tests (fake command execution) and a UI walkthrough against a fake backend only. It has **not** been run against a real Raspberry Pi Zero (or any real SSH target).
+
+A **profile** is a named, reusable, ordered set of tools (a selection from `tools/catalog.json`) that you can apply to one or many devices in one action, for example a "recon kit" or a "wifi kit".
+
+| Field | Notes |
+|---|---|
+| `id` | Generated 8-character id |
+| `name` | Required, up to 64 characters, unique (case-insensitive) |
+| `description` | Optional, up to 500 characters |
+| `tool_ids` | Ordered, de-duplicated, at least one. Each id must exist in the catalog; unknown ids are rejected |
+
+**In the UI:** click **📦 Profiles** in the top bar. **+ New profile** opens a form with a filterable, category-grouped tool picker (or **Use grid selection** to start from the tools currently ticked in the grid). Each saved profile has **⬇ Apply to selected device(s)**, **Edit** and **✕**. Apply asks for confirmation, then installs the profile's tools in order on the current *target* devices from the [Devices panel](#multiple-devices-device-inventory--targeting), in parallel with one log tab per device. With nothing explicitly selected it falls back to the default device, exactly like Install.
+
+**How apply works:** it is an ordinary *install* job (the same code path as `POST /api/install`) for each tool in the profile on each selected device. A failed tool is logged and the remaining tools still run; a failed or unreachable device is marked failed without stopping the others. Apply itself never uninstalls or updates anything. Tools that are already installed are simply run through their install step again, as with Install today.
+
+**Where it is stored:** `profiles.json` next to `devices.json` in the per-user config directory (never in the repo):
+
+| OS | Path |
+|---|---|
+| Linux | `$XDG_CONFIG_HOME/BakerPi-Installer/profiles.json` (default `~/.config/...`) |
+| macOS | `~/Library/Application Support/BakerPi-Installer/profiles.json` |
+| Windows | `%APPDATA%\BakerPi-Installer\profiles.json` |
+
+Override with `--profiles-file PATH` (`server.py` and `launcher.py`) or `BAKERPI_PROFILES_FILE`. The file is written with mode `0600`, contains only profile names, descriptions and tool ids (no hosts, passwords or keys), and `profiles.json` is in `.gitignore`. An unreadable file is moved to `profiles.json.bad` and ignored. Tool ids are checked against the catalog when a profile is saved; if a later catalog no longer has one of them, the profile is still listed but cannot be applied until you edit it.
+
+**API** (target parameters behave as for the install endpoints: `device_ids` > `device_id` > current selection > default device):
+
+| Endpoint | Notes |
+|---|---|
+| `GET/POST /api/profiles` | list / create `{"name", "description"?, "tool_ids"}` |
+| `GET/PUT/DELETE /api/profiles/{id}` | read / partial update / delete |
+| `POST /api/profiles/{id}/apply` | optional body `{device_id}` or `{device_ids}`; returns `job_id`, `devices`, `profile`, `tool_ids`; follow it with the existing `/api/jobs/{id}` and `/api/jobs/{id}/stream` |
+
+**Known limits / TODO**
+
+- Profiles only *install*; there is no drift detection, re-sync, or "apply as update".
+- Profiles are not tied to individual devices, and cannot be exported, imported or shared yet.
+- Everything noted under [Multiple devices](#multiple-devices-device-inventory--targeting) (no retry/cancel, in-memory job logs, auto-accepted SSH host keys) applies here too.
+- Tests (`tests/`) cover profile storage, catalog validation and apply-to-devices targeting with faked commands only — no real SSH or hardware.
+
 ### Android (PWA)
 
 1. With the Pi running `run_ondevice.sh`, open Chrome at `http://172.16.0.1:8080`.
@@ -203,8 +246,9 @@ Windows installers use Inno Setup (`installer.iss`). CI builds are defined in `.
 ## Project structure
 
 ```text
-server.py              FastAPI app (catalog, install jobs, SSH, VNC, system info, device API)
+server.py              FastAPI app (catalog, install jobs, SSH, VNC, system info, device + profile API)
 device_registry.py     Device inventory: persisted Pi targets + selection (stdlib only)
+profile_registry.py    Fleet install profiles: persisted named toolsets (stdlib only)
 tests/                 pytest suite (no hardware needed)
 launcher.py            pywebview native shell around the same UI
 static/                Web UI (index.html), PWA manifest, logo, favicon
@@ -222,7 +266,7 @@ pip3 install -r requirements-dev.txt
 python3 -m pytest
 ```
 
-Tests need no Pi, SSH server or network. CI (`build-installers.yml`) currently only builds the installers and does not run them.
+Tests need no Pi, SSH server or network. CI (`build-installers.yml`) runs them in a `pytest` job in addition to the installer builds.
 
 ## Contributing
 
