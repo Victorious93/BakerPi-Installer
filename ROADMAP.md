@@ -1,7 +1,7 @@
 # BakerPi Tool Installer — Roadmap
 
-> **Status: planned / aspirational.**
-> Everything on this page is *planned work only*. **None of it is implemented yet**, and nothing here has been built, tested, or verified on a real Raspberry Pi Zero (or any other hardware). Items may change, be re-scoped, or be dropped. There are no committed timelines.
+> **Status: mostly planned / aspirational.**
+> Unless an item below says otherwise, it is *planned work only*: not implemented, and not built, tested, or verified on a real Raspberry Pi Zero (or any other hardware). Items marked **Implemented (untested on hardware)** exist in the code and are covered by unit/API tests that use fake command execution, but they have **never been run against a real Pi**. Items may change, be re-scoped, or be dropped. There are no committed timelines.
 >
 > For what the installer does **today**, see the [README](README.md).
 
@@ -13,8 +13,8 @@ BakerPi Tool Installer is part of the wider *Victorious fleet* of apps. The dire
 
 | # | Feature | Status |
 |---|---|---|
-| 1 | Multi-device targeting | Planned — not implemented |
-| 2 | Fleet install profiles | Planned — not implemented |
+| 1 | Multi-device targeting | Partly implemented (untested on hardware) — manual device inventory + parallel targeting; discovery not implemented |
+| 2 | Fleet install profiles | Implemented (untested on hardware) — save / edit / delete / apply; no drift detection |
 | 3 | Device inventory + status dashboard | Planned — not implemented |
 | 4 | Config sync / drift detection | Planned — not implemented |
 | 5 | Headless / unattended provisioning | Planned — not implemented |
@@ -23,8 +23,12 @@ BakerPi Tool Installer is part of the wider *Victorious fleet* of apps. The dire
 ### 1. Multi-device targeting in the UI
 Discover and list every reachable Pi (over USB OTG and SSH), select one or many, and push installs to the selected devices in parallel.
 
+**Implemented so far (untested on real hardware):** a manually maintained device inventory (SSH, USB-RNDIS or local entries), a Devices panel, and install / update / remove jobs that run on several selected devices in parallel with one log tab per device. **Not implemented:** automatic discovery of devices over USB OTG or the network.
+
 ### 2. Fleet install profiles
 Save a named toolset once (for example a "recon kit" or "wifi kit") and apply it to any device, so multiple Pis come up with the same set of tools.
+
+**Implemented (untested on real hardware):** a profile is a named, ordered list of tools picked from the catalog, stored per user in `profiles.json` (outside the repo, mode `0600`, no secrets). The Profiles panel creates, edits and deletes profiles, and **Apply to selected device(s)** runs an install job for the profile's tools on the targeted devices, reusing the existing parallel per-device jobs and log tabs (a failure on one device does not stop the others). It is covered by unit/API tests with faked command execution only. **Not implemented:** drift detection or re-sync against a profile (item 4), unattended first-boot provisioning of a profile (item 5), per-device profile assignment, import/export or sharing of profiles, and applying a profile as update/remove.
 
 ### 3. Device inventory + status dashboard
 A view of known devices showing hostname, IP address, connection type, installed tools, last-seen time, and online/health indicators.

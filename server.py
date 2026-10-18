@@ -32,6 +32,9 @@ from device_registry import (
     DEFAULT_DEVICE_ID, Device, DeviceError, DeviceNotFound, DeviceRegistry,
     build_default_device,
 )
+from profile_registry import (
+    Profile, ProfileError, ProfileNotFound, ProfileRegistry,
+)
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
@@ -45,6 +48,7 @@ STATIC_DIR = BASE_DIR / "static"
 app = FastAPI(title="BakerPi Tool Installer", version="1.0.0")
 config: dict = {}  # CLI-provided single target: mode / host / user / port / key_file
 registry = DeviceRegistry(default_factory=lambda: build_default_device(config))
+profiles = ProfileRegistry(known_tools=lambda: catalog_tool_ids())  # fleet install profiles
 ssh_clients: dict[str, paramiko.SSHClient] = {}  # device_id → live SSH client
 _ssh_creds: dict[str, dict] = {}  # device_id → {password, key_file}; memory only, never persisted
 jobs: dict[str, dict] = {}  # job_id → {status, action, tool_ids, devices, events, ...}
@@ -64,6 +68,9 @@ def flat_tools(catalog: dict) -> dict[str, dict]:
         for tool in cat["tools"]:
             result[tool["id"]] = {**tool, "category_id": cat["id"], "category_name": cat["name"]}
     return result
+
+def catalog_tool_ids() -> set[str]:
+    return set(flat_tools(load_catalog()))
 
 # ── Command Execution ─────────────────────────────────────────────────────────
 
@@ -433,6 +440,14 @@ class DeviceConnectRequest(BaseModel):
 class SelectDevicesRequest(BaseModel):
     device_ids: list[str]
 
+class ProfileIn(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    tool_ids: Optional[list[str]] = None
+
+class ApplyProfileRequest(TargetMixin):
+    pass
+
 # ── Device helpers ────────────────────────────────────────────────────────────
 
 def _model_dict(model: BaseModel, **kw) -> dict:
@@ -462,6 +477,11 @@ def _device_view(device: Device, selected: Optional[list[str]] = None) -> dict:
 
 def _target_ref(device: Device) -> dict:
     return {"id": device.id, "label": device.label}
+
+def _profile_view(profile: Profile) -> dict:
+    d = profile.to_dict()
+    d["unknown_tool_ids"] = profiles.unknown_tools(profile)
+    return d
 
 def _fallback_host(device: Device) -> str:
     return config.get("host", "172.16.0.1") if device.is_local else device.host
@@ -603,6 +623,7 @@ async def get_job(job_id: str):
         output = "".join(f"### {r['label']}\n" + "".join(r["output"]) + "\n" for r in runs)
     return {"job_id": job_id, "status": j["status"], "output": output,
             "tool_ids": j["tool_ids"], "action": j.get("action", "install"),
+            "profile": j.get("profile"),
             "devices": [{"id": r["id"], "label": r["label"], "status": r["status"],
                          "tool_ids": r["tool_ids"], "output": "".join(r["output"])}
                         for r in runs]}
@@ -754,6 +775,72 @@ async def ssh_status(device_id: Optional[str] = None):
         return {"mode": "local", "connected": True}
     return {"mode": "ssh", "connected": device_connected(device), "host": device.host}
 
+# ── Fleet install profiles ────────────────────────────────────────────────────
+# A profile is a named, ordered list of catalog tool ids. Applying one reuses the
+# normal install job machinery (_start_job): one task per target device, one log
+# tab per device, failures isolated per device.
+
+@app.get("/api/profiles")
+async def list_profiles():
+    return {"profiles": [_profile_view(p) for p in profiles.list()]}
+
+@app.post("/api/profiles", status_code=201)
+async def add_profile(req: ProfileIn):
+    try:
+        prof = profiles.add(**_model_dict(req, exclude_none=True))
+    except ProfileError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return _profile_view(prof)
+
+@app.get("/api/profiles/{profile_id}")
+async def get_profile(profile_id: str):
+    try:
+        return _profile_view(profiles.get(profile_id))
+    except ProfileNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@app.put("/api/profiles/{profile_id}")
+async def update_profile(profile_id: str, req: ProfileIn):
+    try:
+        # explicit nulls clear optional fields; omitted keys stay untouched
+        prof = profiles.update(profile_id, **_model_dict(req, exclude_unset=True))
+    except ProfileNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ProfileError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return _profile_view(prof)
+
+@app.delete("/api/profiles/{profile_id}")
+async def remove_profile(profile_id: str):
+    try:
+        profiles.remove(profile_id)
+    except ProfileNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {"removed": profile_id}
+
+@app.post("/api/profiles/{profile_id}/apply")
+async def apply_profile(profile_id: str, req: Optional[ApplyProfileRequest] = None):
+    """Install every tool of a profile on the target device(s).
+
+    Targets resolve exactly like /api/install: ``device_ids`` > ``device_id`` >
+    current selection > built-in default device.
+    """
+    try:
+        prof = profiles.get(profile_id)
+    except ProfileNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    unknown = profiles.unknown_tools(prof)
+    if unknown:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Profile {prof.name!r} references tools missing from the catalog: "
+                   + ", ".join(unknown))
+    devices = _targets_or_404(req)
+    started = _start_job("install", list(prof.tool_ids), devices)
+    jobs[started["job_id"]]["profile"] = {"id": prof.id, "name": prof.name}
+    return {**started, "profile": {"id": prof.id, "name": prof.name},
+            "tool_ids": list(prof.tool_ids)}
+
 # ── VNC Service Control ───────────────────────────────────────────────────────
 
 @app.get("/api/services/vnc/status")
@@ -803,6 +890,9 @@ def parse_args():
     parser.add_argument("--devices-file", default=None,
                         help="Device registry JSON (default: per-user config dir, "
                              "or $BAKERPI_DEVICES_FILE)")
+    parser.add_argument("--profiles-file", default=None,
+                        help="Fleet install profiles JSON (default: per-user config dir, "
+                             "or $BAKERPI_PROFILES_FILE)")
     parser.add_argument("--server-port", type=int, default=8080, help="Web UI port")
     parser.add_argument("--no-browser", action="store_true", help="Don't open browser automatically")
     return parser.parse_args()
@@ -813,6 +903,8 @@ def main():
                   port=args.port, key_file=args.key_file)
     if args.devices_file:
         registry.path = Path(args.devices_file).expanduser()
+    if args.profiles_file:
+        profiles.path = Path(args.profiles_file).expanduser()
 
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
