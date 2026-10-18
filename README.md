@@ -275,6 +275,10 @@ Tests need no Pi, SSH server or network. CI (`build-installers.yml`) runs them i
 - Test both SSH mode and local mode when changing `server.py` job streaming.
 - Commits must carry a DCO sign-off (`git commit -s`).
 
+## Roadmap
+
+Planned directions (**not yet implemented or tested**) include multi-Pi fleet management (multi-device targeting, install profiles, inventory, drift detection, unattended provisioning, batch update/rollback) and a native Android app with built-in Pi Imager SD-card flashing that could flash and provision BakerPi onto a Pi over USB-OTG directly from the phone and then fully control the connected Pi from the phone, plus the Raspberry Pi Zero 2 W as an additional planned (untested) target alongside the current Pi Zero 1.3. See [ROADMAP.md](ROADMAP.md) for details.
+
 ## License
 
 **No `LICENSE` file is present in this repository.** Add an SPDX license before treating the project as redistributable open source. Until then, default copyright remains with the author; clarify terms before accepting external contributions.
