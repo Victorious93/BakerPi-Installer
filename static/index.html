@@ -568,6 +568,34 @@ button { cursor: pointer; font: inherit; }
           <div class="vnc-note" style="margin-top:8px">Reading chip info resets the board into the bootloader briefly.
             "Likely ESP32" is a guess from the USB bridge VID:PID only. Not verified on a real ESP32 yet.</div>
         </div>
+
+        <!-- ESP32 Fleet Firmware (feature 4; untested on hardware) -->
+        <div id="esp32-fleet" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
+          <h4><span class="neon-ring" aria-hidden="true"></span> Fleet Firmware (VictorModem / Pyra Claw)
+            <span class="untested-badge" title="Offsets come from project notes and have not been verified on a real board">UNTESTED ON HARDWARE</span></h4>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Neither project publishes release
+            binaries: build with PlatformIO first, then point at <code>.pio/build/&lt;env&gt;/</code> or upload the .bin files.
+            Uses the port and baud picked above.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+            <div class="form-field"><label>Profile</label><select id="fleet-profile" onchange="fleetFillEnvs()"></select></div>
+            <div class="form-field"><label>Env</label><select id="fleet-env" onchange="fleetShowEnv()"></select></div>
+            <div class="form-field" style="flex:1;min-width:220px"><label>Local build dir (absolute path, optional)</label>
+              <input type="text" id="fleet-build-dir" placeholder="/home/pi/victormodem/.pio/build/esp32s3_bridge5g" style="width:100%"></div>
+          </div>
+          <div id="fleet-env-info" style="font-size:12px;margin-top:8px"></div>
+          <div class="vnc-note" style="margin-top:6px"><b>boot_app0.bin</b> is usually <i>not</i> in
+            <code>.pio/build/&lt;env&gt;/</code>: it ships with the Arduino-ESP32 framework
+            (<code>~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin</code>).
+            Upload it here if it isn't found; if it is skipped, OTA boot selection data at 0xe000 is left as-is.</div>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+            <button class="btn primary btn-sm" id="fleet-flash-btn" onclick="fleetFlash()">⚡ Flash profile</button>
+            <span id="fleet-status" style="font-size:12px;color:var(--muted)"></span>
+          </div>
+          <pre id="fleet-output" style="font-family:var(--mono);font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px;max-height:260px;overflow:auto;white-space:pre-wrap;display:none"></pre>
+          <div class="vnc-note" style="margin-top:8px" id="fleet-monitor-note">Serial monitor: after flashing, open a
+            serial monitor (e.g. <code>pio device monitor -b 115200</code>) for logs only. Neither firmware supports
+            serial provisioning yet. Offsets are not verified on hardware.</div>
+        </div>
       </div>
 
       <!-- VNC Desktop Control Panel -->
@@ -1760,6 +1788,7 @@ async function esp32Init() {
   esp32LoadPorts();
   esp32LoadDevices();
   esp32TcStatus();
+  fleetInit();
 }
 async function esp32LoadPorts() {
   const sel = document.getElementById('esp32-port');
@@ -1852,6 +1881,71 @@ async function esp32Flash() {
   } finally { btn.disabled = false; }
 }
 
+
+// ── ESP32 fleet firmware profiles (feature 4) — UNTESTED ON HARDWARE ─────────
+let fleetProfiles = [];
+async function fleetInit() {
+  if (fleetProfiles.length) return;
+  try {
+    fleetProfiles = (await (await fetch('/api/esp32/fleet/profiles')).json()).profiles;
+    document.getElementById('fleet-profile').innerHTML = fleetProfiles.map(p =>
+      `<option value="${escHtml(p.id)}">${escHtml(p.name)}</option>`).join('');
+    fleetFillEnvs();
+  } catch (e) { document.getElementById('fleet-env-info').textContent = 'Could not load profiles: ' + e.message; }
+}
+function fleetCur() {
+  const p = fleetProfiles.find(x => x.id === document.getElementById('fleet-profile').value);
+  return [p, p && p.envs.find(e => e.id === document.getElementById('fleet-env').value)];
+}
+function fleetFillEnvs() {
+  const [p] = fleetCur(); if (!p) return;
+  document.getElementById('fleet-env').innerHTML = p.envs.map(e =>
+    `<option value="${escHtml(e.id)}">${escHtml(e.id)} (${escHtml(e.chip)})</option>`).join('');
+  fleetShowEnv();
+}
+function fleetShowEnv() {
+  const [p, e] = fleetCur(); if (!e) return;
+  const rows = e.images.map(i => `<tr><td><code>${escHtml(i.address)}</code></td><td><code>${escHtml(i.file)}</code></td>
+    <td><input type="file" accept=".bin" id="fleet-up-${escHtml(i.role)}" title="Optional upload (overrides build dir)"></td>
+    <td style="color:var(--muted)">${i.optional ? 'optional' : ''}</td></tr>`).join('');
+  document.getElementById('fleet-env-info').innerHTML = `<div>Repo <code>${escHtml(p.repo)}</code>${p.project_dir ? ' · <code>' + escHtml(p.project_dir) + '</code>' : ''}
+    · chip <b>${escHtml(e.chip)}</b> · baud ${escHtml(String(e.baud))}
+    · flash args: <code>${escHtml(e.flash_args.join(' ') || 'esptool defaults / detect')}</code>
+    ${e.flash_args_confidence ? ' (' + escHtml(e.flash_args_confidence) + ')' : ''}</div>
+    <table style="margin-top:4px">${rows}</table>
+    <div style="color:var(--muted)">${escHtml(p.notes)} ${escHtml(p.post_flash)}</div>`;
+  const bd = document.getElementById('fleet-build-dir');
+  bd.placeholder = '/path/to/' + p.repo.split('/')[1] + '/' + (p.project_dir ? p.project_dir + '/' : '') + e.build_dir_hint;
+}
+async function fleetFlash() {
+  const [p, e] = fleetCur();
+  const port = document.getElementById('esp32-port').value;
+  const out = document.getElementById('fleet-output'), status = document.getElementById('fleet-status');
+  const btn = document.getElementById('fleet-flash-btn');
+  if (!p || !e) { showToast('Pick a profile', 'error'); return; }
+  if (!port) { showToast('Pick a serial port', 'error'); return; }
+  const fd = new FormData();
+  fd.append('profile', p.id); fd.append('env', e.id); fd.append('port', port);
+  fd.append('baud', document.getElementById('esp32-baud').value || String(e.baud));
+  fd.append('build_dir', document.getElementById('fleet-build-dir').value.trim());
+  for (const i of e.images) { const f = document.getElementById('fleet-up-' + i.role).files[0]; if (f) fd.append(i.role, f); }
+  out.style.display = 'block'; out.textContent = ''; btn.disabled = true; status.textContent = 'Flashing…';
+  try {
+    const r = await fetch('/api/esp32/fleet/flash', {method: 'POST', body: fd});
+    if (!r.ok) {
+      let msg = r.statusText;
+      try { const j = await r.json(); msg = typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail); } catch {}
+      throw new Error(msg);
+    }
+    const reader = r.body.getReader(); const dec = new TextDecoder();
+    for (;;) { const {done, value} = await reader.read(); if (done) break;
+      out.textContent += dec.decode(value, {stream: true}); out.scrollTop = out.scrollHeight; }
+    const m = out.textContent.match(/\[EXIT (-?\d+)\]/); const ok = m && m[1] === '0';
+    status.textContent = ok ? 'esptool reported success. Open a serial monitor for logs.' : 'esptool failed — see output.';
+    showToast(status.textContent, ok ? 'success' : 'error');
+  } catch (err) { status.textContent = 'Error: ' + err.message; showToast(err.message, 'error'); }
+  finally { btn.disabled = false; }
+}
 // ── ESP32 dev toolchain (ESP-IDF / Arduino-CLI) — UNTESTED ON HARDWARE ───────
 async function esp32TcStatus() {
   try {
