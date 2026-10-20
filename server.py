@@ -854,8 +854,14 @@ async def vnc_status(device_id: Optional[str] = None):
         host = ip.strip() if rc2 == 0 else _fallback_host(device)
     return {"running": running, "host": host, "port": 5901, "display": ":1"}
 
+_GEOMETRY_RE = re.compile(r"^\d{2,5}x\d{2,5}$")
+
 @app.post("/api/services/vnc/start")
 async def vnc_start(req: VNCRequest):
+    # geometry is interpolated into a shell command (possibly run over SSH):
+    # accept only WIDTHxHEIGHT digits to prevent command injection
+    if not _GEOMETRY_RE.fullmatch(req.geometry):
+        raise HTTPException(status_code=400, detail="geometry must look like 1280x800")
     device = _device_or_404(req.device_id)
     run_cmd(f"vncserver -kill :{req.display} 2>/dev/null; true", device)
     rc, out = run_cmd(
