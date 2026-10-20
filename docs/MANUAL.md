@@ -211,7 +211,33 @@ Click **☀ Light** / **🌙 Dark** to switch themes. Your choice is saved in th
 
 ### 3.15 HTTP API
 
-Everything in the UI is also available as a JSON API (catalog, tools, install/update/uninstall/update-all, jobs, system, devices, profiles, VNC, SSH, manual). FastAPI's auto-generated docs are at `/docs` on the running server. See the README for the endpoint tables.
+Everything in the UI is also available as a JSON API (catalog, tools, install/update/uninstall/update-all, jobs, system, devices, profiles, VNC, SSH, manual, ESP32 flashing). FastAPI's auto-generated docs are at `/docs` on the running server. See the README for the endpoint tables.
+
+### 3.16 ESP32 flashing (esptool)
+
+> **Untested on hardware.** This feature is covered by automated tests with mocked serial ports and a mocked `esptool` process only. It has **not** been verified against a real ESP32 board yet. Treat it as experimental.
+
+The **⚡ ESP32 Flashing** entry under **Flashing** in the sidebar writes a firmware image to an ESP32 using [esptool](https://github.com/espressif/esptool).
+
+**Where the board goes:** plug the ESP32 into **the computer running BakerPi Installer** (your PC in native/launcher mode, or the Pi itself when using `run_ondevice.sh`). Flashing always runs locally on that machine; it does **not** go over SSH to a remote Pi.
+
+**Before you start:** install esptool on that computer: `pip install esptool` (this also installs `pyserial`, which gives better port names). If esptool is missing, the panel says so and the Flash button returns an error instead of running anything. Pre-built binaries do not bundle esptool; it must be on your `PATH`.
+
+**Steps:**
+
+1. Click **⚡ ESP32 Flashing** in the sidebar.
+2. Pick the **Serial port** (click **↻** to rescan after plugging the board in). Typical names: `/dev/ttyUSB0` or `/dev/ttyACM0` (Linux), `/dev/cu.usbserial-…` (macOS), `COM3` (Windows).
+3. Pick the **Chip** (`auto` lets esptool detect it) and **Baud** (default 460800; drop to 115200 if flashing is unreliable).
+4. Enter the **Flash address** in hex. Default `0x10000` is the usual application offset for ESP-IDF/Arduino builds; a merged/factory image usually goes at `0x0`. Addresses must be 4 KB aligned and below 16 MB.
+5. Choose the **Firmware** `.bin` file (max 16 MB) and click **⚡ Flash**. esptool's output streams into the panel; the run ends with `[EXIT 0]` on success.
+
+Some boards need you to hold **BOOT** while flashing starts. Writing the wrong image or address can leave the board unbootable until you flash a correct image.
+
+**Safety and validation:** port, chip, baud and address are checked against strict allowlists/patterns, and esptool is run as an argument list (never through a shell). The uploaded firmware is written to a temporary file and deleted after the run.
+
+**API:** `GET /api/esp32/status`, `GET /api/esp32/ports`, `POST /api/esp32/flash` (multipart form: `port`, `chip`, `baud`, `address`, `firmware`; streams plain-text output).
+
+This is ESP32 feature 1 of 4; more ESP32 features are planned.
 
 ### Not available today
 
@@ -229,6 +255,7 @@ These are **not** in the code: automatic device discovery, a side-by-side fleet 
 | **Native window** | `launcher.py` binds **`127.0.0.1` only**, so other machines cannot reach it. |
 | **Local files** | The app reads and writes `devices.json` and `profiles.json` in your user config folder (§7). |
 | **SSH host keys** | Unknown host keys are **auto-accepted** (Paramiko `AutoAddPolicy`). This is convenient for a USB-attached Pi, but it does not protect you from man-in-the-middle attacks on untrusted networks. |
+| **Serial ports (ESP32 flashing)** | Flashing opens the board's USB serial port on the computer running the app. On Linux your user usually needs to be in the `dialout` group (`sudo usermod -aG dialout $USER`, then log out and back in), or the port open fails with "Permission denied". Windows may need the CP210x/CH340 USB-serial driver. *Untested on hardware.* |
 | **VNC** | `vncserver` is started with `-localhost no`, so port 5901 is open on the Pi's network interfaces, protected only by the VNC password (default `bakerpi`). |
 
 The catalog's security tools (nmap, aircrack-ng, Metasploit, …) are for **authorized** testing and research only.

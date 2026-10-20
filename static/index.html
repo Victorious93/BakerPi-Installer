@@ -284,6 +284,24 @@ button { cursor: pointer; font: inherit; }
   color: var(--text); padding: 5px 8px; font-size: 12px; font-family: var(--mono);
 }
 
+
+/* ── ESP32 Flashing Panel (untested on hardware) ───────────────── */
+#esp32-panel { display:none; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); padding:16px 18px; margin-bottom:16px; position:relative; }
+#esp32-panel.visible { display:block; }
+#esp32-panel::before { content:""; position:absolute; inset:-1px; border-radius:inherit; padding:1px;
+  background:linear-gradient(90deg, #00f0ff, #ff00e5);
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor; mask-composite:exclude; pointer-events:none; }
+#esp32-panel h4 { font-size:13px; font-weight:600; margin-bottom:10px; display:flex; align-items:center; gap:10px; }
+#esp32-panel .neon-ring { width:22px; height:22px; }
+#esp32-panel select, #esp32-panel input[type=text] { background:var(--bg); border:1px solid var(--border);
+  border-radius:var(--radius); color:var(--text); padding:5px 8px; font-size:12px; font-family:var(--mono); }
+#esp32-output { font-family:var(--mono); font-size:12px; background:var(--bg); border:1px solid var(--border);
+  border-radius:4px; padding:8px 12px; margin-top:10px; max-height:320px; overflow:auto; white-space:pre-wrap; display:none; }
+.untested-badge { font-size:10px; font-weight:600; color:#ff00e5; border:1px solid #ff00e5;
+  border-radius:99px; padding:1px 8px; text-shadow:0 0 4px #ff00e5; }
+
 /* ── Status Filter Bar ──────────────────────────────────────────── */
 #filter-bar {
   display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap;
@@ -473,10 +491,43 @@ button { cursor: pointer; font: inherit; }
         <span class="cat-count" id="count-all">—</span>
       </button>
       <div id="cat-list"></div>
+      <div class="sidebar-section">Flashing</div>
+      <button class="cat-btn" data-cat="flashing" onclick="selectCat('flashing', this)">
+        <span class="cat-icon">⚡</span>
+        <span class="cat-label">ESP32 Flashing</span>
+      </button>
     </nav>
 
     <!-- Main -->
     <main id="main">
+      <!-- ESP32 Flashing Panel (esptool; untested on hardware) -->
+      <div id="esp32-panel">
+        <h4><span class="neon-ring" aria-hidden="true"></span> ESP32 Flashing (esptool)
+          <span class="untested-badge" title="Not yet verified on a real ESP32 board">UNTESTED ON HARDWARE</span></h4>
+        <div class="vnc-note" style="margin-bottom:10px">
+          Plug the ESP32 into <b>the computer running this app</b> (not the remote Pi). Requires
+          <code>esptool</code> on that computer. <span id="esp32-tool-status"></span>
+        </div>
+        <div class="form-row" style="align-items:flex-end">
+          <div class="form-field"><label>Serial port</label>
+            <div style="display:flex;gap:6px"><select id="esp32-port"></select>
+            <button class="btn btn-sm" onclick="esp32LoadPorts()" title="Rescan serial ports">↻</button></div></div>
+          <div class="form-field"><label>Chip</label><select id="esp32-chip"></select></div>
+          <div class="form-field"><label>Baud</label><select id="esp32-baud"></select></div>
+          <div class="form-field"><label>Flash address</label><input type="text" id="esp32-addr" value="0x10000" maxlength="10" size="10"></div>
+          <div class="form-field"><label>Firmware (.bin)</label><input type="file" id="esp32-fw" accept=".bin"></div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn primary btn-sm" id="esp32-flash-btn" onclick="esp32Flash()">⚡ Flash</button>
+          <span id="esp32-status" style="font-size:12px;color:var(--muted)"></span>
+        </div>
+        <pre id="esp32-output"></pre>
+        <div class="vnc-note" style="margin-top:10px">
+          Writing the wrong image or address can leave the board unbootable until re-flashed.
+          This feature has not been verified on a real ESP32 yet.
+        </div>
+      </div>
+
       <!-- VNC Desktop Control Panel -->
       <div id="vnc-panel">
         <h4>
@@ -740,6 +791,15 @@ function selectCat(catId, btn) {
   document.getElementById('cat-desc').textContent = catId === 'all' ? 'All available capabilities for Pi Zero 1.3' : (catDef?.description || '');
   document.getElementById('search').value = '';
   resetStatusFilter();
+  const espPanel = document.getElementById('esp32-panel');
+  if (catId === 'flashing') {
+    document.getElementById('cat-title').textContent = 'ESP32 Flashing';
+    document.getElementById('cat-desc').textContent = 'Flash firmware to a USB-connected ESP32 with esptool (untested on hardware)';
+    espPanel.classList.add('visible');
+    esp32Init();
+  } else {
+    espPanel.classList.remove('visible');
+  }
   const vncPanel = document.getElementById('vnc-panel');
   if (catId === 'os_environments') {
     vncPanel.classList.add('visible');
@@ -1637,6 +1697,73 @@ async function vncStop() {
     showToast('VNC stop: ' + e.message, 'error');
     await refreshVNC();
   }
+}
+
+// ── ESP32 flashing (esptool) — UNTESTED ON HARDWARE ──────────────────────────
+let esp32Ready = false;
+async function esp32Init() {
+  if (!esp32Ready) {
+    try {
+      const st = await (await fetch('/api/esp32/status')).json();
+      document.getElementById('esp32-chip').innerHTML = st.chips.map(c => `<option>${escHtml(c)}</option>`).join('');
+      document.getElementById('esp32-baud').innerHTML = st.bauds.map(b =>
+        `<option ${b === st.default_baud ? 'selected' : ''}>${b}</option>`).join('');
+      document.getElementById('esp32-addr').value = st.default_address;
+      document.getElementById('esp32-tool-status').innerHTML = st.esptool_available
+        ? '<span style="color:var(--green)">esptool found.</span>'
+        : '<span style="color:var(--amber)">esptool not found — install with <code>pip install esptool</code>.</span>';
+      esp32Ready = true;
+    } catch (e) { showToast('ESP32 status failed: ' + e.message, 'error'); }
+  }
+  esp32LoadPorts();
+}
+async function esp32LoadPorts() {
+  const sel = document.getElementById('esp32-port');
+  try {
+    const {ports} = await (await fetch('/api/esp32/ports')).json();
+    sel.innerHTML = ports.length
+      ? ports.map(p => `<option value="${escHtml(p.device)}">${escHtml(p.device)}${p.description ? ' — ' + escHtml(p.description) : ''}</option>`).join('')
+      : '<option value="">No serial ports found</option>';
+  } catch (e) { sel.innerHTML = '<option value="">Port scan failed</option>'; }
+}
+async function esp32Flash() {
+  const port = document.getElementById('esp32-port').value;
+  const fw = document.getElementById('esp32-fw').files[0];
+  const status = document.getElementById('esp32-status');
+  const out = document.getElementById('esp32-output');
+  const btn = document.getElementById('esp32-flash-btn');
+  if (!port) { showToast('Pick a serial port', 'error'); return; }
+  if (!fw) { showToast('Pick a .bin firmware file', 'error'); return; }
+  const fd = new FormData();
+  fd.append('port', port);
+  fd.append('chip', document.getElementById('esp32-chip').value);
+  fd.append('baud', document.getElementById('esp32-baud').value);
+  fd.append('address', document.getElementById('esp32-addr').value.trim());
+  fd.append('firmware', fw);
+  out.style.display = 'block'; out.textContent = '';
+  btn.disabled = true; status.textContent = 'Flashing…';
+  try {
+    const r = await fetch('/api/esp32/flash', {method: 'POST', body: fd});
+    if (!r.ok) {
+      let msg = r.statusText;
+      try { const j = await r.json(); msg = typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail); } catch {}
+      throw new Error(msg);
+    }
+    const reader = r.body.getReader(); const dec = new TextDecoder();
+    for (;;) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      out.textContent += dec.decode(value, {stream: true});
+      out.scrollTop = out.scrollHeight;
+    }
+    const m = out.textContent.match(/\[EXIT (-?\d+)\]/);
+    const ok = m && m[1] === '0';
+    status.textContent = ok ? 'esptool reported success.' : 'esptool failed — see output.';
+    showToast(status.textContent, ok ? 'success' : 'error');
+  } catch (e) {
+    status.textContent = 'Error: ' + e.message;
+    showToast(e.message, 'error');
+  } finally { btn.disabled = false; }
 }
 
 // ── Help / Manual view (renders docs/MANUAL.md from /api/manual) ─────────────

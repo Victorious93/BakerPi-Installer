@@ -23,11 +23,12 @@ from typing import Optional
 
 import paramiko
 import uvicorn
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+import esp32_flasher
 from device_registry import (
     DEFAULT_DEVICE_ID, Device, DeviceError, DeviceNotFound, DeviceRegistry,
     build_default_device,
@@ -897,6 +898,64 @@ async def vnc_stop(device_id: Optional[str] = None, display: int = Query(1, ge=0
     pat = f"^(Xtigervnc|Xvnc) :{display}( |$)"
     run_cmd(f"vncserver -kill :{display} 2>/dev/null; pkill -f '{pat}' 2>/dev/null; true", device)
     return {"stopped": True, "display": f":{display}"}
+
+# ── ESP32 flashing (esptool) ─────────────────────────────────────────────────
+# Runs on the machine hosting this server; the ESP32 must be plugged in here.
+# UNTESTED ON HARDWARE: verified only with mocked subprocess/serial in tests/.
+
+@app.get("/api/esp32/status")
+async def esp32_status():
+    cmd = esp32_flasher.find_esptool()
+    return {"esptool_available": cmd is not None,
+            "chips": list(esp32_flasher.ALLOWED_CHIPS),
+            "bauds": list(esp32_flasher.ALLOWED_BAUDS),
+            "default_baud": esp32_flasher.DEFAULT_BAUD,
+            "default_address": esp32_flasher.DEFAULT_ADDRESS,
+            "hardware_tested": False}
+
+@app.get("/api/esp32/ports")
+async def esp32_ports():
+    try:
+        ports = esp32_flasher.list_serial_ports()
+    except Exception as e:  # pragma: no cover - platform specific
+        raise HTTPException(status_code=500, detail=f"Could not list serial ports: {e}")
+    return {"ports": ports}
+
+@app.post("/api/esp32/flash")
+async def esp32_flash(port: str = Form(...), chip: str = Form("auto"),
+                      baud: str = Form(str(esp32_flasher.DEFAULT_BAUD)),
+                      address: str = Form(esp32_flasher.DEFAULT_ADDRESS),
+                      firmware: UploadFile = File(...)):
+    try:
+        esp32_flasher.validate_port(port)
+        esp32_flasher.validate_chip(chip)
+        baud_i = esp32_flasher.validate_baud(baud)
+        addr = esp32_flasher.validate_address(address)
+        data = await firmware.read(esp32_flasher.MAX_FIRMWARE_BYTES + 1)
+        esp32_flasher.validate_firmware(firmware.filename, len(data), addr)
+    except esp32_flasher.FlashValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    esptool_cmd = esp32_flasher.find_esptool()
+    if esptool_cmd is None:
+        raise HTTPException(status_code=503, detail=(
+            "esptool is not installed on the machine running BakerPi Installer. "
+            "Install it with: pip install esptool"))
+    import tempfile
+    fd, fw_path = tempfile.mkstemp(prefix="bakerpi-fw-", suffix=".bin")
+    with os.fdopen(fd, "wb") as f:
+        f.write(data)
+    cmd = esp32_flasher.build_flash_cmd(esptool_cmd, port, chip, baud_i, addr, fw_path)
+
+    def gen():
+        try:
+            yield "$ " + " ".join(cmd) + "\n"
+            yield from esp32_flasher.stream_flash(cmd)
+        finally:
+            try:
+                os.unlink(fw_path)
+            except OSError:
+                pass
+    return StreamingResponse(gen(), media_type="text/plain")
 
 # ── Startup ───────────────────────────────────────────────────────────────────
 

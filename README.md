@@ -222,6 +222,10 @@ Override with `--profiles-file PATH` (`server.py` and `launcher.py`) or `BAKERPI
 1. With the Pi running `run_ondevice.sh`, open Chrome at `http://172.16.0.1:8080`.
 2. Menu -> **Add to Home Screen** (manifest: `static/manifest.json`).
 
+### ESP32 flashing (untested on hardware)
+
+The **⚡ ESP32 Flashing** sidebar entry flashes a `.bin` to an ESP32 plugged into the computer running the app, using `esptool` (`pip install esptool`). Pick port, chip, baud and flash address, then watch esptool's output live. Not yet verified on a real ESP32. See [docs/MANUAL.md §3.16](docs/MANUAL.md).
+
 ## Tool categories
 
 | Category | Example tools |
@@ -277,6 +281,7 @@ Windows installers use Inno Setup (`installer.iss`). CI builds are defined in `.
 ```text
 server.py              FastAPI app (catalog, install jobs, SSH, VNC, system info, device + profile API)
 device_registry.py     Device inventory: persisted Pi targets + selection (stdlib only)
+esp32_flasher.py       ESP32 flashing helpers: esptool wrapper, input validation, port listing (untested on hardware)
 profile_registry.py    Fleet install profiles: persisted named toolsets (stdlib only)
 tests/                 pytest suite (no hardware needed)
 docs/MANUAL.md         Full user manual (also shown in-app via ❓ Help, GET /api/manual)
