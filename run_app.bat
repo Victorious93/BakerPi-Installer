@@ -3,8 +3,8 @@
 :: Opens the full tool UI inside a WebView2 window — no browser needed.
 ::
 :: Usage:
-::   run_app.bat                           PC mode: SSH to 172.16.0.1
-::   run_app.bat --mode local              on-device mode
+::   run_app.bat                           default: --mode local (on-device)
+::   run_app.bat --mode ssh                PC mode: SSH to 172.16.0.1
 ::   run_app.bat --host 192.168.7.1        custom Pi IP
 ::   run_app.bat --password raspberry      SSH password
 ::

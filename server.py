@@ -23,7 +23,7 @@ from typing import Optional
 
 import paramiko
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -183,8 +183,10 @@ def connect_ssh(host: str, user: str, port: int, password: Optional[str],
     else:
         # Try agent / default key
         pass
-    _ssh_creds[device_id] = {"password": password, "key_file": key_file}
     client.connect(**kwargs)
+    # remember creds only after a successful connect, so a failed attempt
+    # (e.g. wrong password) never overwrites working credentials
+    _ssh_creds[device_id] = {"password": password, "key_file": key_file}
     _drop_client(device_id)
     ssh_clients[device_id] = client
     log.info(f"SSH connected to {user}@{host}:{port}")
@@ -717,6 +719,9 @@ async def update_device(device_id: str, req: DeviceIn):
     conn = lambda d: (d.type, d.host, d.user, d.port, d.key_file)
     if conn(before) != conn(dev):
         _drop_client(device_id)  # connection settings changed: reconnect explicitly
+        # forget remembered creds too, else a stale key_file/password would
+        # take priority over the edited settings on reconnect
+        _ssh_creds.pop(device_id, None)
     return _device_view(dev)
 
 @app.delete("/api/devices/{device_id}")
@@ -770,7 +775,7 @@ async def ssh_connect(req: SSHConnectRequest):
 
 @app.get("/api/ssh/status")
 async def ssh_status(device_id: Optional[str] = None):
-    device = registry.get(device_id) if device_id else registry.default_device()
+    device = _device_or_404(device_id) if device_id else registry.default_device()
     if device.is_local:
         return {"mode": "local", "connected": True}
     return {"mode": "ssh", "connected": device_connected(device), "host": device.host}
@@ -844,18 +849,25 @@ async def apply_profile(profile_id: str, req: Optional[ApplyProfileRequest] = No
 # ── VNC Service Control ───────────────────────────────────────────────────────
 
 @app.get("/api/services/vnc/status")
-async def vnc_status(device_id: Optional[str] = None):
+async def vnc_status(device_id: Optional[str] = None, display: int = Query(1, ge=0, le=99)):
     device = _device_or_404(device_id)
-    rc, _ = run_cmd("pgrep -x Xtigervnc 2>/dev/null || pgrep -x Xvnc 2>/dev/null", device)
+    pat = f"^(Xtigervnc|Xvnc) :{display}( |$)"
+    rc, _ = run_cmd(f"pgrep -f '{pat}' 2>/dev/null", device)
     running = rc == 0
     host = ""
     if running:
         rc2, ip = run_cmd("hostname -I 2>/dev/null | awk '{print $1}'", device)
         host = ip.strip() if rc2 == 0 else _fallback_host(device)
-    return {"running": running, "host": host, "port": 5901, "display": ":1"}
+    return {"running": running, "host": host, "port": 5900 + display, "display": f":{display}"}
+
+_GEOMETRY_RE = re.compile(r"^\d{2,5}x\d{2,5}$")
 
 @app.post("/api/services/vnc/start")
 async def vnc_start(req: VNCRequest):
+    # geometry is interpolated into a shell command (possibly run over SSH):
+    # accept only WIDTHxHEIGHT digits to prevent command injection
+    if not _GEOMETRY_RE.fullmatch(req.geometry):
+        raise HTTPException(status_code=400, detail="geometry must look like 1280x800")
     device = _device_or_404(req.device_id)
     run_cmd(f"vncserver -kill :{req.display} 2>/dev/null; true", device)
     rc, out = run_cmd(
@@ -871,10 +883,11 @@ async def vnc_start(req: VNCRequest):
             "display": f":{req.display}", "geometry": req.geometry}
 
 @app.post("/api/services/vnc/stop")
-async def vnc_stop(device_id: Optional[str] = None):
+async def vnc_stop(device_id: Optional[str] = None, display: int = Query(1, ge=0, le=99)):
     device = _device_or_404(device_id)
-    run_cmd("vncserver -kill :1 2>/dev/null; pkill -x Xtigervnc 2>/dev/null; pkill -x Xvnc 2>/dev/null; true", device)
-    return {"stopped": True}
+    pat = f"^(Xtigervnc|Xvnc) :{display}( |$)"
+    run_cmd(f"vncserver -kill :{display} 2>/dev/null; pkill -f '{pat}' 2>/dev/null; true", device)
+    return {"stopped": True, "display": f":{display}"}
 
 # ── Startup ───────────────────────────────────────────────────────────────────
 
