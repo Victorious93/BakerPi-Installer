@@ -526,6 +526,28 @@ button { cursor: pointer; font: inherit; }
           Writing the wrong image or address can leave the board unbootable until re-flashed.
           This feature has not been verified on a real ESP32 yet.
         </div>
+
+        <!-- ESP32 Detect / Device Info (feature 2; untested on hardware) -->
+        <div id="esp32-detect" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
+          <h4><span class="neon-ring" aria-hidden="true"></span> Detect / Device Info
+            <span class="untested-badge" title="Not yet verified on a real ESP32 board">UNTESTED ON HARDWARE</span></h4>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+            <button class="btn btn-sm" onclick="esp32LoadDevices()">🔍 Scan devices</button>
+            <select id="esp32-info-op" title="esptool read-only command">
+              <option value="flash_id">flash_id (chip + MAC + flash)</option>
+              <option value="read_mac">read_mac</option>
+              <option value="chip_id">chip_id</option>
+            </select>
+            <button class="btn primary btn-sm" id="esp32-info-btn" onclick="esp32ReadInfo()">Read chip info</button>
+            <span id="esp32-info-status" style="font-size:12px;color:var(--muted)"></span>
+          </div>
+          <div id="esp32-devices" style="font-size:12px"></div>
+          <div id="esp32-info" style="font-size:12px;margin-top:8px"></div>
+          <details style="margin-top:6px"><summary style="font-size:12px;cursor:pointer">Raw esptool output</summary>
+            <pre id="esp32-info-raw" style="display:block"></pre></details>
+          <div class="vnc-note" style="margin-top:8px">Reading chip info resets the board into the bootloader briefly.
+            "Likely ESP32" is a guess from the USB bridge VID:PID only. Not verified on a real ESP32 yet.</div>
+        </div>
       </div>
 
       <!-- VNC Desktop Control Panel -->
@@ -1716,6 +1738,7 @@ async function esp32Init() {
     } catch (e) { showToast('ESP32 status failed: ' + e.message, 'error'); }
   }
   esp32LoadPorts();
+  esp32LoadDevices();
 }
 async function esp32LoadPorts() {
   const sel = document.getElementById('esp32-port');
@@ -1725,6 +1748,48 @@ async function esp32LoadPorts() {
       ? ports.map(p => `<option value="${escHtml(p.device)}">${escHtml(p.device)}${p.description ? ' — ' + escHtml(p.description) : ''}</option>`).join('')
       : '<option value="">No serial ports found</option>';
   } catch (e) { sel.innerHTML = '<option value="">Port scan failed</option>'; }
+}
+// ── ESP32 detect / device info — UNTESTED ON HARDWARE ────────────────────────
+let esp32SelectedPort = '';
+async function esp32LoadDevices() {
+  const box = document.getElementById('esp32-devices');
+  box.textContent = 'Scanning…';
+  try {
+    const d = await (await fetch('/api/esp32/devices')).json();
+    if (!d.devices.length) { box.textContent = 'No serial devices found. Plug the board in and scan again.'; return; }
+    const rows = d.devices.map(p => `<tr>
+      <td><input type="radio" name="esp32-dev" value="${escHtml(p.device)}" ${p.device === esp32SelectedPort ? 'checked' : ''}
+        onchange="esp32SelectedPort=this.value;document.getElementById('esp32-port').value=this.value"></td>
+      <td><code>${escHtml(p.device)}</code></td><td>${escHtml(p.vid_pid || '—')}</td>
+      <td>${escHtml([p.manufacturer, p.product || p.description].filter(Boolean).join(' · ') || '—')}</td>
+      <td>${p.likely_esp32 ? '✓ ' + escHtml(p.bridge) : ''}</td></tr>`).join('');
+    box.innerHTML = `<table style="width:100%;border-collapse:collapse"><tr style="color:var(--muted);text-align:left">
+      <th></th><th>Port</th><th>VID:PID</th><th>Manufacturer / product</th><th>Likely ESP32</th></tr>${rows}</table>`
+      + (d.pyserial ? '' : '<div style="color:var(--muted)">pyserial not installed: USB details unavailable (pip install pyserial).</div>');
+  } catch (e) { box.textContent = 'Device scan failed: ' + e.message; }
+}
+async function esp32ReadInfo() {
+  const port = esp32SelectedPort || document.getElementById('esp32-port').value;
+  const status = document.getElementById('esp32-info-status');
+  const btn = document.getElementById('esp32-info-btn');
+  if (!port) { showToast('Select a device first', 'error'); return; }
+  const fd = new FormData();
+  fd.append('port', port);
+  fd.append('op', document.getElementById('esp32-info-op').value);
+  fd.append('chip', document.getElementById('esp32-chip').value || 'auto');
+  btn.disabled = true; status.textContent = 'Running esptool on ' + port + '…';
+  try {
+    const r = await fetch('/api/esp32/chip-info', {method: 'POST', body: fd});
+    const d = await r.json();
+    if (!r.ok) { status.textContent = d.detail || ('HTTP ' + r.status); return; }
+    const i = d.info, f = (k, v) => v ? `<tr><td style="color:var(--muted);padding-right:12px">${k}</td><td><code>${escHtml(v)}</code></td></tr>` : '';
+    document.getElementById('esp32-info').innerHTML = `<table>${f('Chip', i.chip || i.chip_family)}${f('Features', i.features)}
+      ${f('Crystal', i.crystal)}${f('MAC', i.mac)}${f('Chip ID', i.chip_id)}${f('Flash size', i.flash_size)}
+      ${f('Flash mfr / device', i.flash_manufacturer && (i.flash_manufacturer + ' / ' + (i.flash_device || '?')))}</table>`;
+    document.getElementById('esp32-info-raw').textContent = d.output;
+    status.textContent = d.ok ? 'Done (exit 0)' : 'esptool exited ' + d.exit_code + ' — see raw output';
+  } catch (e) { status.textContent = 'Failed: ' + e.message; }
+  finally { btn.disabled = false; }
 }
 async function esp32Flash() {
   const port = document.getElementById('esp32-port').value;
