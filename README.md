@@ -230,6 +230,10 @@ The **⚡ ESP32 Flashing** sidebar entry flashes a `.bin` to an ESP32 plugged in
 
 The **Dev Toolchain** area of the ESP32 panel installs **ESP-IDF** (git clone + `install.sh`) and **Arduino-CLI** (optionally with the `esp32:esp32` core) onto the computer running the app, on Linux or macOS, with live output and installed/not-installed status. ESP-IDF is 1–2 GB and very slow on a Pi Zero. Not yet verified on real hardware. See [docs/MANUAL.md §3.18](docs/MANUAL.md).
 
+### ESP32 fleet firmware profiles (untested on hardware)
+
+The **Fleet Firmware** area of the ESP32 panel has built-in profiles for **VictorModem** (`esp32s3_bridge5g`, `esp32s3_direct4g`, `tsim7600_4g`) and **Pyra Claw** (`esp32dev`). It flashes bootloader, partitions, boot_app0 and firmware at the profile offsets in one esptool call, from a local PlatformIO `.pio/build/<env>/` dir or uploaded `.bin` files (`GET /api/esp32/fleet/profiles`, `POST /api/esp32/fleet/flash`). Neither project publishes binaries, the offsets haven't been verified on hardware, and there's no runtime provisioning yet. See [docs/MANUAL.md §3.19](docs/MANUAL.md).
+
 ## Tool categories
 
 | Category | Example tools |
@@ -287,6 +291,7 @@ server.py              FastAPI app (catalog, install jobs, SSH, VNC, system info
 device_registry.py     Device inventory: persisted Pi targets + selection (stdlib only)
 esp32_flasher.py       ESP32 flashing helpers: esptool wrapper, input validation, port listing, USB device detection, chip-info parsing (untested on hardware)
 esp32_toolchain.py     ESP32 dev toolchain installer: ESP-IDF / Arduino-CLI (untested on hardware)
+esp32_fleet_profiles.py  ESP32 fleet firmware profiles (VictorModem, Pyra Claw) + multi-image flash (untested on hardware)
 profile_registry.py    Fleet install profiles: persisted named toolsets (stdlib only)
 tests/                 pytest suite (no hardware needed)
 docs/MANUAL.md         Full user manual (also shown in-app via ❓ Help, GET /api/manual)
