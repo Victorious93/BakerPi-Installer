@@ -183,8 +183,10 @@ def connect_ssh(host: str, user: str, port: int, password: Optional[str],
     else:
         # Try agent / default key
         pass
-    _ssh_creds[device_id] = {"password": password, "key_file": key_file}
     client.connect(**kwargs)
+    # remember creds only after a successful connect, so a failed attempt
+    # (e.g. wrong password) never overwrites working credentials
+    _ssh_creds[device_id] = {"password": password, "key_file": key_file}
     _drop_client(device_id)
     ssh_clients[device_id] = client
     log.info(f"SSH connected to {user}@{host}:{port}")

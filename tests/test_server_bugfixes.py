@@ -25,3 +25,31 @@ def test_vnc_start_accepts_valid_geometry(api):
     r = api.post("/api/services/vnc/start", json={"geometry": "1920x1080"})
     assert r.status_code == 200
     assert any("-geometry 1920x1080 " in c for _, c in api.calls)
+
+
+def test_failed_connect_keeps_previous_creds(monkeypatch):
+    monkeypatch.setattr(server, "_ssh_creds", {"d1": {"password": "good", "key_file": None}})
+    monkeypatch.setattr(server, "ssh_clients", {})
+
+    class FailingClient:
+        def set_missing_host_key_policy(self, p): pass
+        def connect(self, **kw): raise server.paramiko.AuthenticationException("bad")
+
+    monkeypatch.setattr(server.paramiko, "SSHClient", FailingClient)
+    with pytest.raises(server.paramiko.AuthenticationException):
+        server.connect_ssh("192.0.2.1", "pi", 22, "wrong", None, "d1")
+    assert server._ssh_creds["d1"] == {"password": "good", "key_file": None}
+
+
+def test_successful_connect_saves_creds(monkeypatch):
+    monkeypatch.setattr(server, "_ssh_creds", {})
+    monkeypatch.setattr(server, "ssh_clients", {})
+
+    class OkClient:
+        def set_missing_host_key_policy(self, p): pass
+        def connect(self, **kw): pass
+        def close(self): pass
+
+    monkeypatch.setattr(server.paramiko, "SSHClient", OkClient)
+    server.connect_ssh("192.0.2.1", "pi", 22, "pw", None, "d1")
+    assert server._ssh_creds["d1"] == {"password": "pw", "key_file": None}
