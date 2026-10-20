@@ -309,15 +309,86 @@ VictorModem's flash mode and size aren't specified by the project, so BakerPi pa
 
 **boot_app0.bin is optional.** It ships with the Arduino-ESP32 framework (`framework-arduinoespressif32/tools/partitions/boot_app0.bin`), so PlatformIO usually doesn't copy it into `.pio/build/<env>/`. Upload it if you have it. If it's missing, BakerPi skips 0xe000, says so in the output, and leaves whatever OTA boot data is already there.
 
-**After flashing.** There is no runtime provisioning from BakerPi yet.
-- VictorModem: USB CDC serial at 115200 baud is a debug log only. Runtime control is over BLE GATT or a Wi-Fi WebSocket on port 81. No serial provisioning.
-- Pyra Claw: configuration is compile-time (`config.h`), plus MQTT on the Pi. No serial provisioning yet.
+**After flashing.** To configure a board over USB serial, see §3.20 (needs firmware with serial provisioning).
 
 Use any serial monitor (for example `pio device monitor -b 115200`) to watch logs. BakerPi has no built-in monitor.
 
 **API:** `GET /api/esp32/fleet/profiles`; `POST /api/esp32/fleet/flash` (multipart: `profile`, `env`, `port`, optional `baud`, optional `build_dir`, optional files `bootloader`, `partitions`, `boot_app0`, `firmware`). It streams plain text ending with `[EXIT n]`. It returns 400 for invalid input and 503 if esptool is missing. esptool runs as an argument list with `shell=False`.
 
-This is ESP32 feature 4 of 4.
+This is ESP32 feature 4.
+
+### 3.20 ESP32 USB serial provisioning (VictorModem, Pyra Claw)
+
+> **Untested on hardware.** Covered by automated tests with a **mocked serial port** only. Nothing here has been tried against a real board.
+
+> **Firmware required.** The board must run firmware that has the serial provisioning feature. Older firmware just prints logs and BakerPi will time out.
+> - **Pyra Claw:** merged to `main` (pyra-claw PR #4, commit `4d80adc`). Spec: `docs/PROVISIONING.md`, reference client `tools/provision.py` in that repo. Compiles, but not verified on a board.
+> - **VictorModem:** still in **open PR #3** (branch `feature/usb-provisioning`), **not merged**. Reference client `tools/vm_provision.py` on that branch. Build that branch yourself if you want to try it.
+
+The **USB Provisioning** area of the **⚡ ESP32 Flashing** panel implements the host side of the fleet USB provisioning contract v1. It uses the port chosen at the top of the panel.
+
+**Protocol.** JSON lines at 115200 baud, each `\n`-terminated. Requests look like `{"v":1,"cmd":"hello"}`. Every reply carries `"v":1` and `"ok"`. Lines that don't start with `{` (and JSON without `"v":1`) are firmware logs and are skipped. Commands: `hello`, `get`, `provision` (`cfg` object), `reboot`, `factory_reset`. An unknown command gets `ok:false, err:"unknown_cmd"`.
+
+**Command window.** The board accepts commands for **10 s after boot**, or at any time while it is unprovisioned (Pyra Claw: while no `ssid` is set). Opening the port resets many dev boards. BakerPi opens the port with DTR/RTS deasserted, so opening it doesn't reset the board. Tick **reset board on open** to pulse RTS (EN) and restart the board. BakerPi then repeats `hello` for up to ~13 s. If nothing answers you get a timeout (HTTP 504). Each reply has a 5 s timeout.
+
+**Steps**
+1. Pick the port, then click **Detect**. This runs `hello` and shows the project, fw, chip and env (VictorModem). It also builds the form from the schema for that project/env.
+2. Optionally click **Read current config** (`get`). Non-secret fields are filled in. Secrets are shown as `***` by the firmware and are **never prefilled**.
+3. Fill in the fields. Secrets use password inputs. Click **Apply** (`provision`).
+4. Click **Reboot**. Values are saved straight away but only take effect after a reboot.
+5. **Factory reset…** asks for confirmation, then erases provisioned settings and reboots. The API requires `"confirm": true`.
+
+**Schemas (validated by BakerPi before sending; the firmware validates again)**
+
+*Pyra Claw* (`pyra-claw`): partial key sets are allowed (blank fields are not sent), but validation is **all-or-nothing**: one bad key rejects the whole request and nothing is written.
+- `ssid`: max 32
+- `pass`: secret, max 63
+- `broker`
+- `broker_port`: int 1-65535, default 1883
+- `node_id`: non-empty
+- `mqtt_user`
+- `mqtt_pass`: secret
+- `pc_mac`: `AA:BB:CC:DD:EE:FF`, sent and stored upper-case
+- `pc_broadcast`: IPv4, default 255.255.255.255
+- `hub_token`: secret
+
+Firmware errors are shown in readable form:
+- `unknown_key:<k>`: unknown setting
+- `bad_type:<k>`: wrong type
+- `bad_value:<k>`: invalid value
+- `cfg_not_object`
+- `nvs_open_failed`
+
+*VictorModem* (`victormodem`, fw 0.2.0): the **whole** config is validated **atomically**. Every field for the env is required, and unknown keys, wrong types and wrong lengths are rejected.
+
+| Key | Rule | Envs |
+|---|---|---|
+| `ap_ssid` | str 1-32 | all |
+| `ap_pass` | str 8-63, secret | all |
+| `api_token` | str 16-128, secret | all |
+| `apn`, `apn_user` | str 0-63 | `esp32s3_direct4g`, `tsim7600_4g` |
+| `apn_pass` | str 0-63, secret | `esp32s3_direct4g`, `tsim7600_4g` |
+| `hub_baud` | int 9600-3000000 | `esp32s3_bridge5g` |
+
+The esp32s3 envs talk over native USB CDC. `tsim7600_4g` is a classic esp32 on UART0 through a USB bridge.
+
+**Secrets.** Secret values are never logged or returned. They show as `***` in replies, logs and error messages, including firmware errors that echo them. Schema errors name fields, never values. BakerPi stores nothing.
+
+**API** (JSON bodies, `port` checked with the same strict validator as flashing, optional `reset` bool):
+- `POST /api/esp32/provision/hello`
+- `POST /api/esp32/provision/get`
+- `POST /api/esp32/provision/apply` (`cfg`)
+- `POST /api/esp32/provision/reboot`
+- `POST /api/esp32/provision/factory_reset` (`confirm: true` required)
+- `GET /api/esp32/provision/schemas`
+
+Status codes:
+- 400: bad port or missing confirm
+- 422: config rejected by the client-side schema
+- 502: serial error
+- 504: timeout
+
+A firmware rejection comes back as HTTP 200 with `reply.ok:false`, `reply.err` and a readable `reply.err_text`.
 
 ### Not available today
 

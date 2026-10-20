@@ -232,7 +232,11 @@ The **Dev Toolchain** area of the ESP32 panel installs **ESP-IDF** (git clone + 
 
 ### ESP32 fleet firmware profiles (untested on hardware)
 
-The **Fleet Firmware** area of the ESP32 panel has built-in profiles for **VictorModem** (`esp32s3_bridge5g`, `esp32s3_direct4g`, `tsim7600_4g`) and **Pyra Claw** (`esp32dev`). It flashes bootloader, partitions, boot_app0 and firmware at the profile offsets in one esptool call, from a local PlatformIO `.pio/build/<env>/` dir or uploaded `.bin` files (`GET /api/esp32/fleet/profiles`, `POST /api/esp32/fleet/flash`). Neither project publishes binaries, the offsets haven't been verified on hardware, and there's no runtime provisioning yet. See [docs/MANUAL.md §3.19](docs/MANUAL.md).
+The **Fleet Firmware** area of the ESP32 panel has built-in profiles for **VictorModem** (`esp32s3_bridge5g`, `esp32s3_direct4g`, `tsim7600_4g`) and **Pyra Claw** (`esp32dev`). It flashes bootloader, partitions, boot_app0 and firmware at the profile offsets in one esptool call, from a local PlatformIO `.pio/build/<env>/` dir or uploaded `.bin` files (`GET /api/esp32/fleet/profiles`, `POST /api/esp32/fleet/flash`). Neither project publishes binaries, and the offsets haven't been verified on hardware. See [docs/MANUAL.md §3.19](docs/MANUAL.md).
+
+### ESP32 USB serial provisioning (untested on hardware)
+
+The **USB Provisioning** area of the ESP32 panel configures VictorModem and Pyra Claw boards over USB serial (fleet provisioning contract v1, JSON lines at 115200). It can detect the board (`hello`), build a form from the project/env schema, read the config with secrets redacted, apply it, reboot, and factory reset (with confirmation). The board must run firmware with this feature: Pyra Claw's side is merged (pyra-claw PR #4), while VictorModem's is still in open PR #3. Tested with a mocked serial port only. See [docs/MANUAL.md §3.20](docs/MANUAL.md).
 
 ## Tool categories
 
@@ -292,6 +296,7 @@ device_registry.py     Device inventory: persisted Pi targets + selection (stdli
 esp32_flasher.py       ESP32 flashing helpers: esptool wrapper, input validation, port listing, USB device detection, chip-info parsing (untested on hardware)
 esp32_toolchain.py     ESP32 dev toolchain installer: ESP-IDF / Arduino-CLI (untested on hardware)
 esp32_fleet_profiles.py  ESP32 fleet firmware profiles (VictorModem, Pyra Claw) + multi-image flash (untested on hardware)
+esp32_provision.py     ESP32 USB serial provisioning, contract v1 host side (pyserial; untested on hardware)
 profile_registry.py    Fleet install profiles: persisted named toolsets (stdlib only)
 tests/                 pytest suite (no hardware needed)
 docs/MANUAL.md         Full user manual (also shown in-app via ❓ Help, GET /api/manual)
