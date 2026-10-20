@@ -1,4 +1,30 @@
-# BakerPi Tool Installer
+<!-- victorious-fleet-readme-refresh:start -->
+<p align="center">
+  <img src="assets/logo.png" alt="BakerPi-Installer logo" width="200">
+</p>
+
+# BakerPi-Installer
+
+Cross-platform host tool to install/manage tools on a Raspberry Pi Zero (BakerPi).
+
+**Package id:** `n/a (host tool)`
+
+> **Package note:** Not an Android APK.
+
+**Status:** CI green *(from [fleet-manifest ROADMAP](https://github.com/Victorious93/fleet-manifest/blob/main/ROADMAP.md))*
+
+## Install / build
+
+Python 3 + `requirements.txt`. Entry: `python3 launcher.py` / `python3 server.py` (see existing README). Tests: `python3 -m pytest`.
+
+_Steps above are taken from this repo’s build files / existing docs; anything not exercised in this refresh is unlabeled as verified on a device._
+
+## Victorious fleet
+
+- Monorepo: [https://github.com/Victorious93/victorious-fleet](https://github.com/Victorious93/victorious-fleet)
+- Fleet site: [https://victorious-framework.pages.dev](https://victorious-framework.pages.dev)
+
+<!-- victorious-fleet-readme-refresh:end -->
 
 Cross-platform tool installer for **BakerPi** — the [P4wnP1 A.L.O.A.](https://github.com/Victorious93/P4wnP1_aloa) fork adapted for the **Raspberry Pi Zero 1.3** (no built-in Wi‑Fi/Bluetooth; USB OTG only).
 
