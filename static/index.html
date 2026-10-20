@@ -593,8 +593,29 @@ button { cursor: pointer; font: inherit; }
           </div>
           <pre id="fleet-output" style="font-family:var(--mono);font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px;max-height:260px;overflow:auto;white-space:pre-wrap;display:none"></pre>
           <div class="vnc-note" style="margin-top:8px" id="fleet-monitor-note">Serial monitor: after flashing, open a
-            serial monitor (e.g. <code>pio device monitor -b 115200</code>) for logs only. Neither firmware supports
-            serial provisioning yet. Offsets are not verified on hardware.</div>
+            serial monitor (e.g. <code>pio device monitor -b 115200</code>) for logs. Use <b>USB Provisioning</b>
+            below to configure a board running firmware with serial provisioning. Offsets are not verified on hardware.</div>
+        </div>
+        <!-- ESP32 USB serial provisioning (contract v1; untested on hardware) -->
+        <div id="esp32-prov" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
+          <h4><span class="neon-ring" aria-hidden="true"></span> USB Provisioning (VictorModem / Pyra Claw)
+            <span class="untested-badge" title="Mocked serial tests only; not verified on a real board">UNTESTED ON HARDWARE</span></h4>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Uses the port picked above, 115200 baud.
+            The board must run firmware with serial provisioning (Pyra Claw: merged; VictorModem: PR #3, not merged).
+            It accepts commands for 10 s after boot, or any time while unprovisioned. Changes apply after a reboot.
+            Secrets are never shown or prefilled; leave a secret blank to keep it (Pyra Claw only).</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <label style="font-size:12px"><input type="checkbox" id="prov-reset"> reset board on open</label>
+            <button class="btn btn-sm" id="prov-hello-btn" onclick="provHello()">🔍 Detect</button>
+            <button class="btn btn-sm prov-need" onclick="provGet()" disabled>Read current config</button>
+            <button class="btn primary btn-sm prov-need" onclick="provApply()" disabled>Apply</button>
+            <button class="btn btn-sm prov-need" onclick="provSimple('reboot')" disabled>Reboot</button>
+            <button class="btn btn-sm prov-need" style="color:var(--red,#e55)" onclick="provSimple('factory_reset')" disabled>Factory reset…</button>
+            <span id="prov-status" style="font-size:12px;color:var(--muted)"></span>
+          </div>
+          <div id="prov-info" style="font-size:12px;margin-top:8px"></div>
+          <form id="prov-form" autocomplete="off" onsubmit="return false" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"></form>
+          <pre id="prov-output" style="font-family:var(--mono);font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px;max-height:220px;overflow:auto;white-space:pre-wrap;display:none"></pre>
         </div>
       </div>
 
@@ -1882,6 +1903,84 @@ async function esp32Flash() {
 }
 
 
+// ── ESP32 USB serial provisioning (contract v1) — UNTESTED ON HARDWARE ──────
+let provSchema = null;
+function provPort() { return document.getElementById('esp32-port').value; }
+function provOut(obj) {
+  const o = document.getElementById('prov-output'); o.style.display = 'block';
+  o.textContent = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
+}
+async function provCall(path, body, label) {
+  const st = document.getElementById('prov-status');
+  if (!provPort()) { showToast('Pick a serial port first', 'error'); return null; }
+  st.textContent = label + '… (up to ~15 s)';
+  document.querySelectorAll('#esp32-prov button').forEach(b => b.disabled = true);
+  try {
+    const r = await api('/api/esp32/provision/' + path, jsonOpts('POST',
+      {port: provPort(), reset: document.getElementById('prov-reset').checked, ...body}));
+    const rep = r.reply;
+    if (rep && rep.ok === false) { st.textContent = '✗ ' + (rep.err_text || rep.err); st.style.color = 'var(--red,#e55)'; }
+    else { st.textContent = '✓ ' + label + ' ok' + (r.note ? ' — ' + r.note : ''); st.style.color = 'var(--green)'; }
+    provOut(r.reply || r.hello);
+    return r;
+  } catch (e) { st.textContent = '✗ ' + e.message; st.style.color = 'var(--red,#e55)'; provOut(e.message); return null; }
+  finally {
+    document.getElementById('prov-hello-btn').disabled = false;
+    document.querySelectorAll('#esp32-prov .prov-need').forEach(b => b.disabled = !provSchema);
+  }
+}
+async function provHello() {
+  const r = await provCall('hello', {}, 'Detect');
+  if (!r) return;
+  const h = r.hello || {};
+  provSchema = r.schema;
+  document.getElementById('prov-info').innerHTML = `Project <b>${escHtml(h.project || '?')}</b> · fw <code>${escHtml(h.fw || '?')}</code> · chip <code>${escHtml(h.chip || '?')}</code>`
+    + (h.env ? ` · env <code>${escHtml(h.env)}</code>` : '')
+    + (provSchema ? ` · ${provSchema.partial ? 'partial updates allowed (blank = unchanged; one bad key rejects all)' : 'atomic: every field is required'}`
+                  : ` · <span style="color:var(--amber)">${escHtml(r.schema_error || 'unsupported project')}</span>`);
+  provBuildForm();
+  document.querySelectorAll('#esp32-prov .prov-need').forEach(b => b.disabled = !provSchema);
+}
+function provBuildForm() {
+  const f = document.getElementById('prov-form');
+  if (!provSchema) { f.innerHTML = ''; return; }
+  f.innerHTML = provSchema.fields.map(x => {
+    const lim = x.type === 'int' ? `min="${x.min}" max="${x.max}"` : (x.max ? `maxlength="${x.max}"` : '');
+    const ph = x.secret ? '(secret, not shown)' : (x.default !== undefined ? 'default ' + x.default : (x.fmt === 'mac' ? 'AA:BB:CC:DD:EE:FF' : ''));
+    const hint = x.type === 'int' ? `${x.min}-${x.max}` : (x.min !== undefined || x.max ? `${x.min || 0}-${x.max} chars` : (x.fmt || ''));
+    return `<div class="form-field"><label>${escHtml(x.label)} <span style="color:var(--muted)">${escHtml(hint)}</span></label>
+      <input data-key="${escHtml(x.name)}" data-type="${x.type}" type="${x.secret ? 'password' : (x.type === 'int' ? 'number' : 'text')}"
+        ${lim} placeholder="${escHtml(ph)}" autocomplete="${x.secret ? 'new-password' : 'off'}" style="background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 6px"></div>`;
+  }).join('');
+}
+async function provGet() {
+  const r = await provCall('get', {}, 'Read config');
+  const cfg = r && r.reply && r.reply.cfg;
+  if (!cfg || !provSchema) return;
+  document.querySelectorAll('#prov-form input').forEach(i => {
+    const f = provSchema.fields.find(x => x.name === i.dataset.key);
+    if (f && !f.secret && cfg[i.dataset.key] !== undefined) i.value = cfg[i.dataset.key];  // never prefill secrets
+  });
+}
+async function provApply() {
+  if (!provSchema) return;
+  const cfg = {};
+  document.querySelectorAll('#prov-form input').forEach(i => {
+    if (i.value === '' && provSchema.partial) return;
+    cfg[i.dataset.key] = i.dataset.type === 'int' && i.value !== '' ? Number(i.value) : i.value;
+  });
+  if (!Object.keys(cfg).length) { showToast('Nothing to apply', 'error'); return; }
+  const r = await provCall('apply', {cfg}, 'Apply');
+  if (r) document.querySelectorAll('#prov-form input[type=password]').forEach(i => i.value = '');
+}
+async function provSimple(cmd) {
+  const body = {};
+  if (cmd === 'factory_reset') {
+    if (!confirm('Factory reset this board? All provisioned settings will be erased and it will reboot.')) return;
+    body.confirm = true;
+  }
+  await provCall(cmd, body, cmd === 'reboot' ? 'Reboot' : 'Factory reset');
+}
 // ── ESP32 fleet firmware profiles (feature 4) — UNTESTED ON HARDWARE ─────────
 let fleetProfiles = [];
 async function fleetInit() {
