@@ -23,7 +23,7 @@ from typing import Optional
 
 import paramiko
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -849,15 +849,16 @@ async def apply_profile(profile_id: str, req: Optional[ApplyProfileRequest] = No
 # ── VNC Service Control ───────────────────────────────────────────────────────
 
 @app.get("/api/services/vnc/status")
-async def vnc_status(device_id: Optional[str] = None):
+async def vnc_status(device_id: Optional[str] = None, display: int = Query(1, ge=0, le=99)):
     device = _device_or_404(device_id)
-    rc, _ = run_cmd("pgrep -x Xtigervnc 2>/dev/null || pgrep -x Xvnc 2>/dev/null", device)
+    pat = f"^(Xtigervnc|Xvnc) :{display}( |$)"
+    rc, _ = run_cmd(f"pgrep -f '{pat}' 2>/dev/null", device)
     running = rc == 0
     host = ""
     if running:
         rc2, ip = run_cmd("hostname -I 2>/dev/null | awk '{print $1}'", device)
         host = ip.strip() if rc2 == 0 else _fallback_host(device)
-    return {"running": running, "host": host, "port": 5901, "display": ":1"}
+    return {"running": running, "host": host, "port": 5900 + display, "display": f":{display}"}
 
 _GEOMETRY_RE = re.compile(r"^\d{2,5}x\d{2,5}$")
 
@@ -882,10 +883,11 @@ async def vnc_start(req: VNCRequest):
             "display": f":{req.display}", "geometry": req.geometry}
 
 @app.post("/api/services/vnc/stop")
-async def vnc_stop(device_id: Optional[str] = None):
+async def vnc_stop(device_id: Optional[str] = None, display: int = Query(1, ge=0, le=99)):
     device = _device_or_404(device_id)
-    run_cmd("vncserver -kill :1 2>/dev/null; pkill -x Xtigervnc 2>/dev/null; pkill -x Xvnc 2>/dev/null; true", device)
-    return {"stopped": True}
+    pat = f"^(Xtigervnc|Xvnc) :{display}( |$)"
+    run_cmd(f"vncserver -kill :{display} 2>/dev/null; pkill -f '{pat}' 2>/dev/null; true", device)
+    return {"stopped": True, "display": f":{display}"}
 
 # ── Startup ───────────────────────────────────────────────────────────────────
 
