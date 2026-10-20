@@ -10,21 +10,35 @@ import asyncio
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
+import threading
 import time
 import uuid
 import webbrowser
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import paramiko
 import uvicorn
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, StrictBool
+
+import esp32_flasher
+import esp32_toolchain
+import esp32_fleet_profiles
+import esp32_provision
+from device_registry import (
+    DEFAULT_DEVICE_ID, Device, DeviceError, DeviceNotFound, DeviceRegistry,
+    build_default_device,
+)
+from profile_registry import (
+    Profile, ProfileError, ProfileNotFound, ProfileRegistry,
+)
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
@@ -32,15 +46,19 @@ BASE_DIR = Path(__file__).parent.resolve()
 CATALOG_PATH = BASE_DIR / "tools" / "catalog.json"
 SCRIPTS_DIR = BASE_DIR / "install_scripts"
 STATIC_DIR = BASE_DIR / "static"
+MANUAL_PATH = BASE_DIR / "docs" / "MANUAL.md"
 
 # ── Globals ───────────────────────────────────────────────────────────────────
 
 app = FastAPI(title="BakerPi Tool Installer", version="1.0.0")
-config: dict = {}
-ssh_client: Optional[paramiko.SSHClient] = None
-jobs: dict[str, dict] = {}  # job_id → {status, output, tool_ids}
+config: dict = {}  # CLI-provided single target: mode / host / user / port / key_file
+registry = DeviceRegistry(default_factory=lambda: build_default_device(config))
+profiles = ProfileRegistry(known_tools=lambda: catalog_tool_ids())  # fleet install profiles
+ssh_clients: dict[str, paramiko.SSHClient] = {}  # device_id → live SSH client
+_ssh_creds: dict[str, dict] = {}  # device_id → {password, key_file}; memory only, never persisted
+jobs: dict[str, dict] = {}  # job_id → {status, action, tool_ids, devices, events, ...}
 log = logging.getLogger("installer")
-_executor = ThreadPoolExecutor(max_workers=4)
+_executor = ThreadPoolExecutor(max_workers=16)  # install jobs run one task per target device
 
 # ── Catalog ───────────────────────────────────────────────────────────────────
 
@@ -55,6 +73,9 @@ def flat_tools(catalog: dict) -> dict[str, dict]:
         for tool in cat["tools"]:
             result[tool["id"]] = {**tool, "category_id": cat["id"], "category_name": cat["name"]}
     return result
+
+def catalog_tool_ids() -> set[str]:
+    return set(flat_tools(load_catalog()))
 
 # ── Command Execution ─────────────────────────────────────────────────────────
 
@@ -76,63 +97,87 @@ def stream_local(cmd: str):
     proc.wait()
     yield f"\n[EXIT {proc.returncode}]\n"
 
-def run_ssh(cmd: str) -> tuple[int, str]:
+def _live_client(device_id: str) -> Optional[paramiko.SSHClient]:
+    client = ssh_clients.get(device_id)
+    transport = client.get_transport() if client else None
+    return client if transport is not None and transport.is_active() else None
+
+def device_connected(device: Device) -> bool:
+    return True if device.is_local else _live_client(device.id) is not None
+
+def run_ssh(cmd: str, device: Optional[Device] = None) -> tuple[int, str]:
     """Execute command over SSH (PC mode)."""
-    if not ssh_client:
-        raise RuntimeError("SSH not connected")
-    _, stdout, stderr = ssh_client.exec_command(cmd, timeout=300)
+    device = device or registry.default_device()
+    client = _live_client(device.id)
+    if not client:
+        raise RuntimeError(f"SSH not connected ({device.label})")
+    _, stdout, stderr = client.exec_command(cmd, timeout=300)
     rc = stdout.channel.recv_exit_status()
     return rc, stdout.read().decode() + stderr.read().decode()
 
-def stream_ssh(cmd: str):
+def stream_ssh(cmd: str, device: Optional[Device] = None):
     """Yield output lines from an SSH command."""
-    if not ssh_client:
+    device = device or registry.default_device()
+    client = _live_client(device.id)
+    if not client:
         yield "[ERROR] SSH not connected\n"
         return
-    _, stdout, stderr = ssh_client.exec_command(cmd, get_pty=True, timeout=300)
+    _, stdout, stderr = client.exec_command(cmd, get_pty=True, timeout=300)
     for line in stdout:
         yield line
     rc = stdout.channel.recv_exit_status()
     yield f"\n[EXIT {rc}]\n"
 
-def run_cmd(cmd: str) -> tuple[int, str]:
-    if config.get("mode") == "local":
+def run_cmd(cmd: str, device: Optional[Device] = None) -> tuple[int, str]:
+    """Run a command on `device` (default: the CLI-provided target)."""
+    device = device or registry.default_device()
+    if device.is_local:
         return run_local(cmd)
-    return run_ssh(cmd)
+    return run_ssh(cmd, device)
 
-def stream_cmd(cmd: str):
-    if config.get("mode") == "local":
+def stream_cmd(cmd: str, device: Optional[Device] = None):
+    device = device or registry.default_device()
+    if device.is_local:
         yield from stream_local(cmd)
     else:
-        yield from stream_ssh(cmd)
+        yield from stream_ssh(cmd, device)
 
 # ── Status Check ──────────────────────────────────────────────────────────────
 
-def check_tool_installed(tool: dict) -> bool:
+def check_tool_installed(tool: dict, device: Optional[Device] = None) -> bool:
     check = tool.get("check_cmd", "")
     if not check:
         return False
     try:
-        rc, _ = run_cmd(check)
+        rc, _ = run_cmd(check, device)
         return rc == 0
     except Exception:
         return False
 
-def check_tool_installed_fast(tool: dict) -> bool:
+def check_tool_installed_fast(tool: dict, device: Optional[Device] = None) -> bool:
     """Fast check using dpkg for packages, fallback to check_cmd."""
     pkg = tool.get("check_pkg", "")
     if pkg:
         try:
-            rc, out = run_cmd(f"dpkg -l {pkg} 2>/dev/null | grep -q '^ii'")
+            rc, out = run_cmd(f"dpkg -l {pkg} 2>/dev/null | grep -q '^ii'", device)
             return rc == 0
         except Exception:
             pass
-    return check_tool_installed(tool)
+    return check_tool_installed(tool, device)
 
 # ── SSH Connection ────────────────────────────────────────────────────────────
 
-def connect_ssh(host: str, user: str, port: int, password: Optional[str], key_file: Optional[str]):
-    global ssh_client
+def _drop_client(device_id: str) -> None:
+    client = ssh_clients.pop(device_id, None)
+    if client:
+        try:
+            client.close()
+        except Exception:
+            pass
+
+def connect_ssh(host: str, user: str, port: int, password: Optional[str],
+                key_file: Optional[str], device_id: str = DEFAULT_DEVICE_ID):
+    """Open an SSH connection for `device_id` (default: the CLI-provided target)."""
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     kwargs = dict(hostname=host, username=user, port=port, timeout=15)
@@ -144,21 +189,36 @@ def connect_ssh(host: str, user: str, port: int, password: Optional[str], key_fi
         # Try agent / default key
         pass
     client.connect(**kwargs)
-    ssh_client = client
+    # remember creds only after a successful connect, so a failed attempt
+    # (e.g. wrong password) never overwrites working credentials
+    _ssh_creds[device_id] = {"password": password, "key_file": key_file}
+    _drop_client(device_id)
+    ssh_clients[device_id] = client
     log.info(f"SSH connected to {user}@{host}:{port}")
+
+def ensure_connected(device: Device) -> None:
+    """Make sure `device` has a live connection, reconnecting with remembered
+    in-memory credentials / key / agent if needed. Raises on failure."""
+    if device_connected(device):
+        return
+    creds = _ssh_creds.get(device.id, {})
+    connect_ssh(device.host, device.user, device.port, creds.get("password"),
+                creds.get("key_file") or device.key_file, device.id)
 
 # ── Install / Update Logic ────────────────────────────────────────────────────
 
-def _script_cmd(script: str, tool_id: str, mode_arg: str = "") -> str:
+def _script_cmd(script: str, tool_id: str, mode_arg: str = "",
+                device: Optional[Device] = None) -> str:
     """Build the shell command for a given install script, tool, and mode."""
     script_path = f"/usr/local/BakerPi/tool_installer/install_scripts/{script}"
     local_path = str(SCRIPTS_DIR / script)
     suffix = f" {tool_id}" + (f" {mode_arg}" if mode_arg else "")
-    if config.get("mode") == "local":
+    device = device or registry.default_device()
+    if device.is_local:
         return f"bash {local_path}{suffix}"
     return f"bash {script_path}{suffix}"
 
-def get_install_cmd(tool: dict) -> str:
+def get_install_cmd(tool: dict, device: Optional[Device] = None) -> str:
     """Returns the shell command to install a tool."""
     tool_id = tool["id"]
     script = tool.get("install_script", "")
@@ -172,9 +232,9 @@ def get_install_cmd(tool: dict) -> str:
             return f"apt-get install -y --no-install-recommends {' '.join(pkgs)}"
         return f"echo 'No install method defined for {tool_id}'"
 
-    return _script_cmd(script, tool_id)
+    return _script_cmd(script, tool_id, device=device)
 
-def get_update_cmd(tool: dict) -> str:
+def get_update_cmd(tool: dict, device: Optional[Device] = None) -> str:
     """Returns the shell command to update an already-installed tool."""
     tool_id = tool["id"]
 
@@ -189,7 +249,7 @@ def get_update_cmd(tool: dict) -> str:
     script = tool.get("install_script", "")
     if script:
         # Pass "update" as the second argument; scripts handle git pull / pip upgrade
-        return _script_cmd(script, tool_id, "update")
+        return _script_cmd(script, tool_id, "update", device)
 
     # apt packages: refresh lists then upgrade only the named packages
     pkgs = tool.get("packages", [])
@@ -238,55 +298,125 @@ def get_uninstall_cmd(tool: dict) -> str:
     return (f"echo 'No automated uninstall for {tool_id}. "
             f"Check /opt/, pip list, and dpkg -l to locate installed files.'")
 
-def _run_job_sync(job_id: str, tool_ids: list, catalog: dict, action: str):
-    """Runs in a thread pool — blocks on subprocess I/O, does not touch the event loop."""
-    tools_map = flat_tools(catalog)
-    jobs[job_id]["status"] = "running"
-    verb = {"update": "Updating", "uninstall": "Removing"}.get(action, "Installing")
+_EXIT_RE = re.compile(r"\[EXIT (-?\d+)\]")
 
-    for tool_id in tool_ids:
-        tool = tools_map.get(tool_id)
-        if not tool:
-            jobs[job_id]["output"].append(f"[SKIP] Unknown tool: {tool_id}\n")
-            continue
+def _new_job(action: str, targets: list[tuple[Device, list[str]]]) -> str:
+    """Register a job with one independent run per target device."""
+    job_id = str(uuid.uuid4())
+    all_tools: list[str] = []
+    for _, ids in targets:
+        all_tools += [t for t in ids if t not in all_tools]
+    jobs[job_id] = {
+        "status": "pending", "action": action, "tool_ids": all_tools,
+        "events": [],  # ordered {device, line} / {device, device_status} for SSE
+        "devices": {
+            d.id: {"id": d.id, "label": d.label, "tool_ids": ids,
+                   "status": "pending", "failed": False, "output": []}
+            for d, ids in targets
+        },
+        "_remaining": len(targets), "_lock": threading.Lock(),
+    }
+    return job_id
 
-        jobs[job_id]["output"].append(f"\n{'='*60}\n")
-        jobs[job_id]["output"].append(f"{verb}: {tool['name']}\n")
-        jobs[job_id]["output"].append(f"{'='*60}\n")
+def _run_device_job(job_id: str, device: Device, tool_ids: list, catalog: dict, action: str):
+    """One device's share of a job. Runs in a thread pool — blocks on subprocess/SSH
+    I/O, does not touch the event loop. Devices of the same job run in parallel."""
+    job = jobs[job_id]
+    run = job["devices"][device.id]
 
-        if action == "update":
-            cmd = get_update_cmd(tool)
-        elif action == "uninstall":
-            cmd = get_uninstall_cmd(tool)
-        else:
-            cmd = get_install_cmd(tool)
-        jobs[job_id]["output"].append(f"$ {cmd}\n\n")
+    def emit(line: str):
+        run["output"].append(line)
+        job["events"].append({"device": device.id, "line": line})
+
+    def set_status(status: str):
+        run["status"] = status
+        job["events"].append({"device": device.id, "device_status": status})
+
+    try:
+        tools_map = flat_tools(catalog)
+        set_status("running")
+        job["status"] = "running"
+        verb = {"update": "Updating", "uninstall": "Removing"}.get(action, "Installing")
+        failed = False
 
         try:
-            for line in stream_cmd(cmd):
-                jobs[job_id]["output"].append(line)
+            ensure_connected(device)
+            connected = True
         except Exception as e:
-            jobs[job_id]["output"].append(f"[ERROR] {e}\n")
+            connected = False
+            failed = True
+            emit(f"[ERROR] Could not connect to {device.label}: {e}\n")
 
-    done_msg = {"update": "Update", "uninstall": "Removal"}.get(action, "Installation")
-    jobs[job_id]["output"].append(f"\n[DONE] {done_msg} complete.\n")
-    jobs[job_id]["status"] = "done"
+        for tool_id in tool_ids if connected else []:
+            tool = tools_map.get(tool_id)
+            if not tool:
+                emit(f"[SKIP] Unknown tool: {tool_id}\n")
+                continue
+
+            emit(f"\n{'='*60}\n")
+            emit(f"{verb}: {tool['name']}\n")
+            emit(f"{'='*60}\n")
+
+            if action == "update":
+                cmd = get_update_cmd(tool, device)
+            elif action == "uninstall":
+                cmd = get_uninstall_cmd(tool)
+            else:
+                cmd = get_install_cmd(tool, device)
+            emit(f"$ {cmd}\n\n")
+
+            try:
+                for line in stream_cmd(cmd, device):
+                    emit(line)
+                    m = _EXIT_RE.search(line)
+                    if m and int(m.group(1)) != 0:
+                        failed = True
+            except Exception as e:
+                failed = True
+                emit(f"[ERROR] {e}\n")
+
+        if connected:
+            done_msg = {"update": "Update", "uninstall": "Removal"}.get(action, "Installation")
+            emit(f"\n[DONE] {done_msg} " + ("finished with errors.\n" if failed else "complete.\n"))
+        run["failed"] = failed
+        set_status("failed" if failed else "done")
+    except Exception as e:  # never leave the job hanging
+        run["failed"] = True
+        emit(f"[ERROR] {e}\n")
+        set_status("failed")
+    finally:
+        with job["_lock"]:
+            job["_remaining"] -= 1
+            if job["_remaining"] == 0:
+                job["status"] = "done"
 
 
-def _spawn_job(job_id: str, tool_ids: list, catalog: dict, action: str):
-    """Submit a job to the thread pool from an async endpoint."""
+def _spawn_job(job_id: str, tool_ids_by_device: dict, devices: list[Device],
+               catalog: dict, action: str):
+    """Submit one task per target device to the thread pool from an async endpoint."""
     loop = asyncio.get_running_loop()
-    loop.run_in_executor(_executor, _run_job_sync, job_id, tool_ids, catalog, action)
+    for dev in devices:
+        loop.run_in_executor(_executor, _run_device_job, job_id, dev,
+                             tool_ids_by_device[dev.id], catalog, action)
 
 # ── API Models ────────────────────────────────────────────────────────────────
 
-class InstallRequest(BaseModel):
+class TargetMixin(BaseModel):
+    """Optional device targeting. Precedence: device_ids > device_id > current
+    selection (which falls back to the built-in default device)."""
+    device_id: Optional[str] = None
+    device_ids: Optional[list[str]] = None
+
+class InstallRequest(TargetMixin):
     tool_ids: list[str]
 
-class UpdateRequest(BaseModel):
+class UpdateRequest(TargetMixin):
     tool_ids: list[str]
 
-class UninstallRequest(BaseModel):
+class UpdateAllRequest(TargetMixin):
+    pass
+
+class UninstallRequest(TargetMixin):
     tool_ids: list[str]
 
 class SSHConnectRequest(BaseModel):
@@ -295,10 +425,73 @@ class SSHConnectRequest(BaseModel):
     port: int = 22
     password: Optional[str] = None
     key_file: Optional[str] = None
+    device_id: Optional[str] = None  # connect a registry device instead of the default target
 
 class VNCRequest(BaseModel):
     geometry: str = "1280x800"
     display: int = 1
+    device_id: Optional[str] = None
+
+class DeviceIn(BaseModel):
+    label: Optional[str] = None
+    type: Optional[str] = None  # ssh | local | usb-rndis
+    host: Optional[str] = None
+    user: Optional[str] = None
+    port: Optional[int] = None
+    key_file: Optional[str] = None
+
+class DeviceConnectRequest(BaseModel):
+    password: Optional[str] = None  # kept in memory for this session only
+    key_file: Optional[str] = None
+
+class SelectDevicesRequest(BaseModel):
+    device_ids: list[str]
+
+class ProfileIn(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    tool_ids: Optional[list[str]] = None
+
+class ApplyProfileRequest(TargetMixin):
+    pass
+
+# ── Device helpers ────────────────────────────────────────────────────────────
+
+def _model_dict(model: BaseModel, **kw) -> dict:
+    return model.model_dump(**kw) if hasattr(model, "model_dump") else model.dict(**kw)
+
+def _device_or_404(device_id: Optional[str] = None) -> Device:
+    """Single target: explicit id, else the primary device of the current selection."""
+    try:
+        return registry.get(device_id) if device_id else registry.primary()
+    except DeviceNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+def _targets_or_404(req: Optional[TargetMixin]) -> list[Device]:
+    try:
+        return registry.resolve(req.device_id if req else None,
+                                req.device_ids if req else None)
+    except DeviceNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+def _device_view(device: Device, selected: Optional[list[str]] = None) -> dict:
+    selected = registry.get_selected_ids() if selected is None else selected
+    d = device.to_dict()
+    d["connected"] = device_connected(device)
+    d["selected"] = device.id in selected
+    d["primary"] = bool(selected) and selected[0] == device.id
+    return d
+
+def _target_ref(device: Device) -> dict:
+    return {"id": device.id, "label": device.label}
+
+def _profile_view(profile: Profile) -> dict:
+    d = profile.to_dict()
+    d["unknown_tool_ids"] = profiles.unknown_tools(profile)
+    return d
+
+def _fallback_host(device: Device) -> str:
+    return config.get("host", "172.16.0.1") if device.is_local else device.host
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
@@ -309,69 +502,89 @@ async def root():
         return index.read_text()
     return "<h1>BakerPi Tool Installer</h1><p>static/index.html not found.</p>"
 
+@app.get("/api/manual", response_class=PlainTextResponse)
+async def get_manual():
+    """Read-only: the user manual (docs/MANUAL.md) as Markdown text."""
+    if not MANUAL_PATH.is_file():
+        raise HTTPException(status_code=404, detail="Manual not found")
+    return PlainTextResponse(MANUAL_PATH.read_text(encoding="utf-8"),
+                             media_type="text/markdown; charset=utf-8")
+
 @app.get("/api/catalog")
 async def get_catalog():
     return load_catalog()
 
 @app.get("/api/tools")
-async def get_tools():
-    """Returns all tools with their current install status."""
+async def get_tools(device_id: Optional[str] = None):
+    """Returns all tools with their current install status on the target device
+    (default: the primary selected device)."""
+    device = _device_or_404(device_id)
     catalog = load_catalog()
     tools_map = flat_tools(catalog)
     result = []
     for tool_id, tool in tools_map.items():
         t = dict(tool)
-        t["installed"] = check_tool_installed_fast(tool)
+        t["installed"] = check_tool_installed_fast(tool, device)
         result.append(t)
     return result
 
 @app.get("/api/tools/{tool_id}/status")
-async def get_tool_status(tool_id: str):
+async def get_tool_status(tool_id: str, device_id: Optional[str] = None):
+    device = _device_or_404(device_id)
     catalog = load_catalog()
     tools_map = flat_tools(catalog)
     tool = tools_map.get(tool_id)
     if not tool:
         raise HTTPException(status_code=404, detail="Tool not found")
-    return {"tool_id": tool_id, "installed": check_tool_installed_fast(tool)}
+    return {"tool_id": tool_id, "installed": check_tool_installed_fast(tool, device),
+            "device_id": device.id}
+
+def _start_job(action: str, tool_ids: list[str], devices: list[Device]) -> dict:
+    catalog = load_catalog()
+    by_device = {d.id: list(tool_ids) for d in devices}
+    job_id = _new_job(action, [(d, by_device[d.id]) for d in devices])
+    _spawn_job(job_id, by_device, devices, catalog, action)
+    return {"job_id": job_id, "devices": [_target_ref(d) for d in devices]}
 
 @app.post("/api/install")
 async def install_tools(req: InstallRequest):
     if not req.tool_ids:
         raise HTTPException(status_code=400, detail="No tool_ids provided")
-    job_id = str(uuid.uuid4())
-    catalog = load_catalog()
-    jobs[job_id] = {"status": "pending", "output": [], "tool_ids": req.tool_ids,
-                    "action": "install"}
-    _spawn_job(job_id, req.tool_ids, catalog, "install")
-    return {"job_id": job_id}
+    return _start_job("install", req.tool_ids, _targets_or_404(req))
 
 @app.post("/api/update")
 async def update_tools(req: UpdateRequest):
     if not req.tool_ids:
         raise HTTPException(status_code=400, detail="No tool_ids provided")
-    job_id = str(uuid.uuid4())
-    catalog = load_catalog()
-    jobs[job_id] = {"status": "pending", "output": [], "tool_ids": req.tool_ids,
-                    "action": "update"}
-    _spawn_job(job_id, req.tool_ids, catalog, "update")
-    return {"job_id": job_id}
+    return _start_job("update", req.tool_ids, _targets_or_404(req))
 
 @app.post("/api/update-all")
-async def update_all_installed():
-    """Update every currently-installed tool in one job."""
+async def update_all_installed(req: Optional[UpdateAllRequest] = None):
+    """Update every currently-installed tool, per target device, in one job."""
+    devices = _targets_or_404(req)
     catalog = load_catalog()
     tools_map = flat_tools(catalog)
-    installed_ids = [
-        tid for tid, tool in tools_map.items()
-        if not tool.get("builtin") and check_tool_installed_fast(tool)
-    ]
-    if not installed_ids:
+
+    def installed_on(device: Device) -> list[str]:
+        try:
+            ensure_connected(device)
+        except Exception:
+            return []
+        return [tid for tid, tool in tools_map.items()
+                if not tool.get("builtin") and check_tool_installed_fast(tool, device)]
+
+    loop = asyncio.get_running_loop()
+    found = await asyncio.gather(*[loop.run_in_executor(_executor, installed_on, d)
+                                   for d in devices])
+    by_device = {d.id: ids for d, ids in zip(devices, found) if ids}
+    skipped = [_target_ref(d) for d in devices if d.id not in by_device]
+    if not by_device:
         raise HTTPException(status_code=400, detail="No installed tools found")
-    job_id = str(uuid.uuid4())
-    jobs[job_id] = {"status": "pending", "output": [], "tool_ids": installed_ids,
-                    "action": "update"}
-    _spawn_job(job_id, installed_ids, catalog, "update")
-    return {"job_id": job_id, "tool_ids": installed_ids}
+    targets = [d for d in devices if d.id in by_device]
+    job_id = _new_job("update", [(d, by_device[d.id]) for d in targets])
+    _spawn_job(job_id, by_device, targets, catalog, "update")
+    return {"job_id": job_id, "tool_ids": jobs[job_id]["tool_ids"],
+            "devices": [_target_ref(d) for d in targets], "skipped_devices": skipped}
 
 @app.post("/api/uninstall")
 async def uninstall_tools(req: UninstallRequest):
@@ -383,27 +596,30 @@ async def uninstall_tools(req: UninstallRequest):
     blocked = [tid for tid in req.tool_ids if tools_map.get(tid, {}).get("builtin")]
     if blocked:
         raise HTTPException(status_code=400, detail=f"Cannot uninstall built-in tools: {blocked}")
-    job_id = str(uuid.uuid4())
-    jobs[job_id] = {"status": "pending", "output": [], "tool_ids": req.tool_ids,
-                    "action": "uninstall"}
-    _spawn_job(job_id, req.tool_ids, catalog, "uninstall")
-    return {"job_id": job_id}
+    return _start_job("uninstall", req.tool_ids, _targets_or_404(req))
 
 @app.get("/api/jobs/{job_id}/stream")
 async def stream_job(job_id: str):
-    """Server-sent events stream for install progress."""
+    """Server-sent events stream for install progress.
+
+    Events: {"device", "line"} log output, {"device", "device_status"} per-device
+    status changes, and a final {"done": true, "devices": {id: status}}.
+    """
     if job_id not in jobs:
         raise HTTPException(status_code=404, detail="Job not found")
 
     async def event_generator():
         sent = 0
+        job = jobs[job_id]
         while True:
-            output = jobs[job_id]["output"]
-            while sent < len(output):
-                yield f"data: {json.dumps({'line': output[sent]})}\n\n"
+            finished = job["status"] == "done"  # read before draining: no lost tail events
+            events = job["events"]
+            while sent < len(events):
+                yield f"data: {json.dumps(events[sent])}\n\n"
                 sent += 1
-            if jobs[job_id]["status"] == "done":
-                yield f"data: {json.dumps({'done': True})}\n\n"
+            if finished:
+                summary = {did: r["status"] for did, r in job["devices"].items()}
+                yield f"data: {json.dumps({'done': True, 'devices': summary})}\n\n"
                 break
             await asyncio.sleep(0.1)
 
@@ -415,86 +631,529 @@ async def get_job(job_id: str):
     if job_id not in jobs:
         raise HTTPException(status_code=404, detail="Job not found")
     j = jobs[job_id]
-    return {"job_id": job_id, "status": j["status"],
-            "output": "".join(j["output"]), "tool_ids": j["tool_ids"],
-            "action": j.get("action", "install")}
+    runs = list(j["devices"].values())
+    if len(runs) == 1:
+        output = "".join(runs[0]["output"])
+    else:
+        output = "".join(f"### {r['label']}\n" + "".join(r["output"]) + "\n" for r in runs)
+    return {"job_id": job_id, "status": j["status"], "output": output,
+            "tool_ids": j["tool_ids"], "action": j.get("action", "install"),
+            "profile": j.get("profile"),
+            "devices": [{"id": r["id"], "label": r["label"], "status": r["status"],
+                         "tool_ids": r["tool_ids"], "output": "".join(r["output"])}
+                        for r in runs]}
 
 @app.get("/api/system")
-async def get_system():
-    """Returns Pi Zero system info."""
+async def get_system(device_id: Optional[str] = None):
+    """Returns Pi Zero system info for the target device (default: primary selected)."""
+    device = _device_or_404(device_id)
+    who = {"device_id": device.id, "device_label": device.label,
+           "device_type": device.type}
     try:
-        rc, hostname = run_cmd("hostname")
+        rc, hostname = run_cmd("hostname", device)
         hostname = hostname.strip() if rc == 0 else "unknown"
-        rc, uptime = run_cmd("uptime -p")
+        rc, uptime = run_cmd("uptime -p", device)
         uptime = uptime.strip() if rc == 0 else ""
-        rc, cpu = run_cmd("grep -m1 'cpu MHz' /proc/cpuinfo | awk '{print $4}'")
+        rc, cpu = run_cmd("grep -m1 'cpu MHz' /proc/cpuinfo | awk '{print $4}'", device)
         cpu = cpu.strip() if rc == 0 else ""
-        rc, mem = run_cmd("free -h | awk 'NR==2{print $3\"/\"$2}'")
+        rc, mem = run_cmd("free -h | awk 'NR==2{print $3\"/\"$2}'", device)
         mem = mem.strip() if rc == 0 else ""
-        rc, disk = run_cmd("df -h / | awk 'NR==2{print $3\"/\"$2}'")
+        rc, disk = run_cmd("df -h / | awk 'NR==2{print $3\"/\"$2}'", device)
         disk = disk.strip() if rc == 0 else ""
-        rc, arch = run_cmd("uname -m")
+        rc, arch = run_cmd("uname -m", device)
         arch = arch.strip() if rc == 0 else ""
-        rc, os_ver = run_cmd("cat /etc/os-release | grep PRETTY_NAME | cut -d'\"' -f2")
+        rc, os_ver = run_cmd("cat /etc/os-release | grep PRETTY_NAME | cut -d'\"' -f2", device)
         os_ver = os_ver.strip() if rc == 0 else ""
-        rc, temp = run_cmd("cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null | awk '{printf \"%.1f°C\", $1/1000}'")
+        rc, temp = run_cmd("cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null | awk '{printf \"%.1f°C\", $1/1000}'", device)
         temp = temp.strip() if rc == 0 else ""
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": str(e), **who}
 
     return {
         "hostname": hostname, "uptime": uptime, "cpu_mhz": cpu,
         "memory": mem, "disk": disk, "arch": arch, "os": os_ver,
-        "temp": temp, "mode": config.get("mode"),
-        "pi_host": config.get("host", "local"),
+        "temp": temp, "mode": "local" if device.is_local else "ssh",
+        "pi_host": device.host if not device.is_local
+                   else (config.get("host", "local") if device.id == DEFAULT_DEVICE_ID else "local"),
+        **who,
     }
+
+# ── Device registry ───────────────────────────────────────────────────────────
+# NOTE: parallel multi-device execution is implemented for install/update/
+# uninstall/update-all jobs (one task per selected device). Status views
+# (/api/tools, /api/system, VNC) are single-device: they follow the primary
+# (first) selected device, or an explicit ?device_id=.
+
+@app.get("/api/devices")
+async def list_devices():
+    selected = registry.get_selected_ids()
+    return {"devices": [_device_view(d, selected) for d in registry.list()],
+            "selected": selected, "primary": selected[0]}
+
+@app.post("/api/devices", status_code=201)
+async def add_device(req: DeviceIn):
+    try:
+        dev = registry.add(**_model_dict(req, exclude_none=True))
+    except DeviceError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return _device_view(dev)
+
+@app.get("/api/devices/selected")
+async def get_selected_devices():
+    selected = registry.get_selected_ids()
+    return {"selected": selected, "primary": selected[0],
+            "devices": [_device_view(registry.get(i), selected) for i in selected]}
+
+@app.put("/api/devices/selected")
+async def set_selected_devices(req: SelectDevicesRequest):
+    try:
+        selected = registry.set_selected(req.device_ids)
+    except DeviceNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except DeviceError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"selected": selected, "primary": selected[0],
+            "devices": [_device_view(registry.get(i), selected) for i in selected]}
+
+@app.get("/api/devices/{device_id}")
+async def get_device(device_id: str):
+    return _device_view(_device_or_404(device_id))
+
+@app.put("/api/devices/{device_id}")
+async def update_device(device_id: str, req: DeviceIn):
+    try:
+        before = registry.get(device_id)
+        # explicit nulls clear optional fields; omitted keys stay untouched
+        dev = registry.update(device_id, **_model_dict(req, exclude_unset=True))
+    except DeviceNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except DeviceError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    conn = lambda d: (d.type, d.host, d.user, d.port, d.key_file)
+    if conn(before) != conn(dev):
+        _drop_client(device_id)  # connection settings changed: reconnect explicitly
+        # forget remembered creds too, else a stale key_file/password would
+        # take priority over the edited settings on reconnect
+        _ssh_creds.pop(device_id, None)
+    return _device_view(dev)
+
+@app.delete("/api/devices/{device_id}")
+async def remove_device(device_id: str):
+    try:
+        registry.remove(device_id)
+    except DeviceNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except DeviceError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    _drop_client(device_id)
+    _ssh_creds.pop(device_id, None)
+    selected = registry.get_selected_ids()
+    return {"removed": device_id, "selected": selected, "primary": selected[0]}
+
+@app.post("/api/devices/{device_id}/connect")
+def connect_device(device_id: str, req: Optional[DeviceConnectRequest] = None):
+    """Open the SSH connection for a registry device. Sync endpoint: runs in the
+    thread pool so the 15 s connect timeout cannot block the event loop."""
+    device = _device_or_404(device_id)
+    if device.is_local:
+        return {"connected": True, "device_id": device.id}
+    creds = _ssh_creds.get(device.id, {})
+    password = req.password if req and req.password else creds.get("password")
+    key_file = (req.key_file if req and req.key_file else None) \
+        or creds.get("key_file") or device.key_file
+    try:
+        connect_ssh(device.host, device.user, device.port, password, key_file, device.id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"connected": True, "device_id": device.id, "host": device.host}
 
 @app.post("/api/ssh/connect")
 async def ssh_connect(req: SSHConnectRequest):
+    """Legacy single-target connect. Without `device_id` it (re)points the
+    built-in default target at host/user/port and connects it."""
     try:
+        if req.device_id:
+            device = _device_or_404(req.device_id)
+            connect_ssh(device.host, device.user, device.port, req.password,
+                        req.key_file or device.key_file, device.id)
+            return {"connected": True, "host": device.host, "device_id": device.id}
         connect_ssh(req.host, req.user, req.port, req.password, req.key_file)
+        config.update(host=req.host, user=req.user, port=req.port,
+                      key_file=req.key_file)
         return {"connected": True, "host": req.host}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/ssh/status")
-async def ssh_status():
-    if config.get("mode") == "local":
+async def ssh_status(device_id: Optional[str] = None):
+    device = _device_or_404(device_id) if device_id else registry.default_device()
+    if device.is_local:
         return {"mode": "local", "connected": True}
-    connected = ssh_client is not None and ssh_client.get_transport() is not None \
-                and ssh_client.get_transport().is_active()
-    return {"mode": "ssh", "connected": connected, "host": config.get("host", "")}
+    return {"mode": "ssh", "connected": device_connected(device), "host": device.host}
+
+# ── Fleet install profiles ────────────────────────────────────────────────────
+# A profile is a named, ordered list of catalog tool ids. Applying one reuses the
+# normal install job machinery (_start_job): one task per target device, one log
+# tab per device, failures isolated per device.
+
+@app.get("/api/profiles")
+async def list_profiles():
+    return {"profiles": [_profile_view(p) for p in profiles.list()]}
+
+@app.post("/api/profiles", status_code=201)
+async def add_profile(req: ProfileIn):
+    try:
+        prof = profiles.add(**_model_dict(req, exclude_none=True))
+    except ProfileError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return _profile_view(prof)
+
+@app.get("/api/profiles/{profile_id}")
+async def get_profile(profile_id: str):
+    try:
+        return _profile_view(profiles.get(profile_id))
+    except ProfileNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@app.put("/api/profiles/{profile_id}")
+async def update_profile(profile_id: str, req: ProfileIn):
+    try:
+        # explicit nulls clear optional fields; omitted keys stay untouched
+        prof = profiles.update(profile_id, **_model_dict(req, exclude_unset=True))
+    except ProfileNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ProfileError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return _profile_view(prof)
+
+@app.delete("/api/profiles/{profile_id}")
+async def remove_profile(profile_id: str):
+    try:
+        profiles.remove(profile_id)
+    except ProfileNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {"removed": profile_id}
+
+@app.post("/api/profiles/{profile_id}/apply")
+async def apply_profile(profile_id: str, req: Optional[ApplyProfileRequest] = None):
+    """Install every tool of a profile on the target device(s).
+
+    Targets resolve exactly like /api/install: ``device_ids`` > ``device_id`` >
+    current selection > built-in default device.
+    """
+    try:
+        prof = profiles.get(profile_id)
+    except ProfileNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    unknown = profiles.unknown_tools(prof)
+    if unknown:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Profile {prof.name!r} references tools missing from the catalog: "
+                   + ", ".join(unknown))
+    devices = _targets_or_404(req)
+    started = _start_job("install", list(prof.tool_ids), devices)
+    jobs[started["job_id"]]["profile"] = {"id": prof.id, "name": prof.name}
+    return {**started, "profile": {"id": prof.id, "name": prof.name},
+            "tool_ids": list(prof.tool_ids)}
 
 # ── VNC Service Control ───────────────────────────────────────────────────────
 
 @app.get("/api/services/vnc/status")
-async def vnc_status():
-    rc, _ = run_cmd("pgrep -x Xtigervnc 2>/dev/null || pgrep -x Xvnc 2>/dev/null")
+async def vnc_status(device_id: Optional[str] = None, display: int = Query(1, ge=0, le=99)):
+    device = _device_or_404(device_id)
+    pat = f"^(Xtigervnc|Xvnc) :{display}( |$)"
+    rc, _ = run_cmd(f"pgrep -f '{pat}' 2>/dev/null", device)
     running = rc == 0
     host = ""
     if running:
-        rc2, ip = run_cmd("hostname -I 2>/dev/null | awk '{print $1}'")
-        host = ip.strip() if rc2 == 0 else config.get("host", "172.16.0.1")
-    return {"running": running, "host": host, "port": 5901, "display": ":1"}
+        rc2, ip = run_cmd("hostname -I 2>/dev/null | awk '{print $1}'", device)
+        host = ip.strip() if rc2 == 0 else _fallback_host(device)
+    return {"running": running, "host": host, "port": 5900 + display, "display": f":{display}"}
+
+_GEOMETRY_RE = re.compile(r"^\d{2,5}x\d{2,5}$")
 
 @app.post("/api/services/vnc/start")
 async def vnc_start(req: VNCRequest):
-    run_cmd(f"vncserver -kill :{req.display} 2>/dev/null; true")
+    # geometry is interpolated into a shell command (possibly run over SSH):
+    # accept only WIDTHxHEIGHT digits to prevent command injection
+    if not _GEOMETRY_RE.fullmatch(req.geometry):
+        raise HTTPException(status_code=400, detail="geometry must look like 1280x800")
+    device = _device_or_404(req.device_id)
+    run_cmd(f"vncserver -kill :{req.display} 2>/dev/null; true", device)
     rc, out = run_cmd(
-        f"vncserver :{req.display} -geometry {req.geometry} -depth 24 -localhost no 2>&1"
+        f"vncserver :{req.display} -geometry {req.geometry} -depth 24 -localhost no 2>&1",
+        device,
     )
     if rc != 0 and "desktop" not in out.lower() and "starting" not in out.lower():
         raise HTTPException(status_code=500, detail=out.strip() or "vncserver failed to start")
-    rc2, ip = run_cmd("hostname -I 2>/dev/null | awk '{print $1}'")
-    host = ip.strip() if rc2 == 0 else config.get("host", "172.16.0.1")
+    rc2, ip = run_cmd("hostname -I 2>/dev/null | awk '{print $1}'", device)
+    host = ip.strip() if rc2 == 0 else _fallback_host(device)
     port = 5900 + req.display
     return {"started": True, "host": host, "port": port,
             "display": f":{req.display}", "geometry": req.geometry}
 
 @app.post("/api/services/vnc/stop")
-async def vnc_stop():
-    run_cmd("vncserver -kill :1 2>/dev/null; pkill -x Xtigervnc 2>/dev/null; pkill -x Xvnc 2>/dev/null; true")
-    return {"stopped": True}
+async def vnc_stop(device_id: Optional[str] = None, display: int = Query(1, ge=0, le=99)):
+    device = _device_or_404(device_id)
+    pat = f"^(Xtigervnc|Xvnc) :{display}( |$)"
+    run_cmd(f"vncserver -kill :{display} 2>/dev/null; pkill -f '{pat}' 2>/dev/null; true", device)
+    return {"stopped": True, "display": f":{display}"}
+
+# ── ESP32 flashing (esptool) ─────────────────────────────────────────────────
+# Runs on the machine hosting this server; the ESP32 must be plugged in here.
+# UNTESTED ON HARDWARE: verified only with mocked subprocess/serial in tests/.
+
+@app.get("/api/esp32/status")
+async def esp32_status():
+    cmd = esp32_flasher.find_esptool()
+    return {"esptool_available": cmd is not None,
+            "chips": list(esp32_flasher.ALLOWED_CHIPS),
+            "bauds": list(esp32_flasher.ALLOWED_BAUDS),
+            "default_baud": esp32_flasher.DEFAULT_BAUD,
+            "default_address": esp32_flasher.DEFAULT_ADDRESS,
+            "hardware_tested": False}
+
+@app.get("/api/esp32/ports")
+async def esp32_ports():
+    try:
+        ports = esp32_flasher.list_serial_ports()
+    except Exception as e:  # pragma: no cover - platform specific
+        raise HTTPException(status_code=500, detail=f"Could not list serial ports: {e}")
+    return {"ports": ports}
+
+@app.post("/api/esp32/flash")
+async def esp32_flash(port: str = Form(...), chip: str = Form("auto"),
+                      baud: str = Form(str(esp32_flasher.DEFAULT_BAUD)),
+                      address: str = Form(esp32_flasher.DEFAULT_ADDRESS),
+                      firmware: UploadFile = File(...)):
+    try:
+        esp32_flasher.validate_port(port)
+        esp32_flasher.validate_chip(chip)
+        baud_i = esp32_flasher.validate_baud(baud)
+        addr = esp32_flasher.validate_address(address)
+        data = await firmware.read(esp32_flasher.MAX_FIRMWARE_BYTES + 1)
+        esp32_flasher.validate_firmware(firmware.filename, len(data), addr)
+    except esp32_flasher.FlashValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    esptool_cmd = esp32_flasher.find_esptool()
+    if esptool_cmd is None:
+        raise HTTPException(status_code=503, detail=(
+            "esptool is not installed on the machine running BakerPi Installer. "
+            "Install it with: pip install esptool"))
+    import tempfile
+    fd, fw_path = tempfile.mkstemp(prefix="bakerpi-fw-", suffix=".bin")
+    with os.fdopen(fd, "wb") as f:
+        f.write(data)
+    cmd = esp32_flasher.build_flash_cmd(esptool_cmd, port, chip, baud_i, addr, fw_path)
+
+    def gen():
+        try:
+            yield "$ " + " ".join(cmd) + "\n"
+            yield from esp32_flasher.stream_flash(cmd)
+        finally:
+            try:
+                os.unlink(fw_path)
+            except OSError:
+                pass
+    return StreamingResponse(gen(), media_type="text/plain")
+
+# ── ESP32 detection / device info (feature 2) — UNTESTED ON HARDWARE ─────────
+
+@app.get("/api/esp32/devices")
+async def esp32_devices():
+    try:
+        res = esp32_flasher.list_usb_devices()
+    except Exception as e:  # pragma: no cover - platform specific
+        raise HTTPException(status_code=500, detail=f"Could not list devices: {e}")
+    res["esptool_available"] = esp32_flasher.find_esptool() is not None
+    res["hardware_tested"] = False
+    return res
+
+@app.post("/api/esp32/chip-info")
+def esp32_chip_info(port: str = Form(...), op: str = Form(esp32_flasher.DEFAULT_INFO_OP),
+                    chip: str = Form("auto"), baud: str = Form("115200")):
+    # Sync def: FastAPI runs it in a threadpool, so the blocking esptool call is fine.
+    try:
+        esp32_flasher.validate_port(port)
+        esp32_flasher.validate_info_op(op)
+        esp32_flasher.validate_chip(chip)
+        baud_i = esp32_flasher.validate_baud(baud)
+    except esp32_flasher.FlashValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    esptool_cmd = esp32_flasher.find_esptool()
+    if esptool_cmd is None:
+        raise HTTPException(status_code=503, detail=(
+            "esptool is not installed on the machine running BakerPi Installer. "
+            "Install it with: pip install esptool"))
+    cmd = esp32_flasher.build_info_cmd(esptool_cmd, port, op, chip, baud_i)
+    res = esp32_flasher.run_info(cmd)
+    res.update({"port": port, "op": op, "command": cmd, "hardware_tested": False})
+    return res
+
+# ── ESP32 fleet firmware profiles (feature 4) — UNTESTED ON HARDWARE ────────
+# VictorModem / Pyra Claw. Neither publishes binaries; offsets are unverified.
+
+@app.get("/api/esp32/fleet/profiles")
+async def esp32_fleet_profiles_list():
+    return {"profiles": esp32_fleet_profiles.list_profiles(),
+            "optional_roles": list(esp32_fleet_profiles.OPTIONAL_ROLES),
+            "hardware_tested": False}
+
+@app.post("/api/esp32/fleet/flash")
+async def esp32_fleet_flash(profile: str = Form(...), env: str = Form(...),
+                            port: str = Form(...), baud: str = Form(""),
+                            build_dir: str = Form(""),
+                            bootloader: Optional[UploadFile] = File(None),
+                            partitions: Optional[UploadFile] = File(None),
+                            boot_app0: Optional[UploadFile] = File(None),
+                            firmware: Optional[UploadFile] = File(None)):
+    import shutil as _sh
+    import tempfile
+    fp = esp32_fleet_profiles
+    uploads = {"bootloader": bootloader, "partitions": partitions,
+               "boot_app0": boot_app0, "firmware": firmware}
+    tmpdir = None
+    try:
+        try:
+            env_cfg = fp.get_env(profile, env)
+            esp32_flasher.validate_port(port)
+            baud_i = esp32_flasher.validate_baud(baud or env_cfg["baud"])
+            extra = {}
+            for role, up in uploads.items():
+                if up is None or not up.filename:
+                    continue
+                if role not in env_cfg["images"]:
+                    raise esp32_flasher.FlashValidationError(f"{role} is not used by this env.")
+                data = await up.read(esp32_flasher.MAX_FIRMWARE_BYTES + 1)
+                esp32_flasher.validate_firmware(up.filename, len(data),
+                                                env_cfg["images"][role])
+                if tmpdir is None:
+                    tmpdir = tempfile.mkdtemp(prefix="bakerpi-fleet-")
+                path = os.path.join(tmpdir, fp.IMAGE_FILES[role])
+                with open(path, "wb") as f:
+                    f.write(data)
+                extra[role] = path
+            if build_dir.strip():
+                images = fp.collect_from_build_dir(build_dir.strip(), env_cfg, extra)
+            else:
+                images = extra
+            esptool_cmd = esp32_flasher.find_esptool()
+            if esptool_cmd is None:
+                raise HTTPException(status_code=503, detail=(
+                    "esptool is not installed on the machine running BakerPi Installer. "
+                    "Install it with: pip install esptool"))
+            cmd = fp.build_multi_flash_cmd(esptool_cmd, port, baud_i, env_cfg, images)
+        except esp32_flasher.FlashValidationError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+    except BaseException:
+        if tmpdir:
+            _sh.rmtree(tmpdir, ignore_errors=True)
+        raise
+    skipped = [fp.IMAGE_FILES[r] for r in env_cfg["images"] if r not in images]
+
+    def gen():
+        try:
+            yield "# UNTESTED ON HARDWARE: offsets from project notes, not verified.\n"
+            if skipped:
+                yield ("# Not flashing " + ", ".join(skipped) + " (not found/uploaded; "
+                       "boot_app0.bin ships with the Arduino-ESP32 framework).\n")
+            yield "$ " + " ".join(cmd) + "\n"
+            yield from esp32_flasher.stream_flash(cmd)
+        finally:
+            if tmpdir:
+                _sh.rmtree(tmpdir, ignore_errors=True)
+    return StreamingResponse(gen(), media_type="text/plain")
+
+# ── ESP32 USB serial provisioning (contract v1) — UNTESTED ON HARDWARE ──────
+# Host side only; firmware support is in open PRs. Secrets are never returned.
+
+class ProvisionRequest(BaseModel):
+    port: str
+    reset: StrictBool = False
+
+class ProvisionApplyRequest(ProvisionRequest):
+    cfg: Any = None  # validated in esp32_provision; typed loosely so a 422 never echoes secrets
+
+class ProvisionFactoryResetRequest(ProvisionRequest):
+    confirm: StrictBool = False
+
+def _provision_call(fn, *a, **kw):
+    try:
+        return fn(*a, **kw)
+    except esp32_flasher.FlashValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except esp32_provision.SchemaError as e:
+        raise HTTPException(status_code=422, detail="Config rejected: " + str(e))
+    except esp32_provision.ProvisionTimeout as e:
+        raise HTTPException(status_code=504, detail=str(e))
+    except esp32_provision.ProvisionError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+@app.get("/api/esp32/provision/schemas")
+def esp32_provision_schemas():
+    return {"schemas": {p: {"label": s["label"], "partial": s["partial"], "envs": s["envs"]}
+                        for p, s in esp32_provision.SCHEMAS.items()},
+            "hardware_tested": False}
+
+@app.post("/api/esp32/provision/hello")
+def esp32_provision_hello(req: ProvisionRequest):
+    return _provision_call(esp32_provision.do_hello, req.port, reset=req.reset)
+
+@app.post("/api/esp32/provision/get")
+def esp32_provision_get(req: ProvisionRequest):
+    return _provision_call(esp32_provision.do_get, req.port, reset=req.reset)
+
+@app.post("/api/esp32/provision/apply")
+def esp32_provision_apply(req: ProvisionApplyRequest):
+    return _provision_call(esp32_provision.do_apply, req.port, req.cfg, reset=req.reset)
+
+@app.post("/api/esp32/provision/reboot")
+def esp32_provision_reboot(req: ProvisionRequest):
+    return _provision_call(esp32_provision.do_simple, req.port, "reboot", reset=req.reset)
+
+@app.post("/api/esp32/provision/factory_reset")
+def esp32_provision_factory_reset(req: ProvisionFactoryResetRequest):
+    if req.confirm is not True:
+        raise HTTPException(status_code=400, detail="factory_reset requires confirm: true.")
+    return _provision_call(esp32_provision.do_simple, req.port, "factory_reset", reset=req.reset)
+
+# ── ESP32 dev toolchain (ESP-IDF / Arduino-CLI) ──────────────────────────────
+# Installs onto the machine hosting this server (never over SSH).
+# UNTESTED ON HARDWARE: verified only with mocked subprocess in tests/.
+# ESP-IDF is large and very slow on a Pi Zero.
+
+class ToolchainInstallRequest(BaseModel):
+    item: str
+    version: str = esp32_toolchain.DEFAULT_IDF_VERSION
+    targets: list[str] = list(esp32_toolchain.DEFAULT_IDF_TARGETS)
+    with_esp32_core: bool = True
+
+@app.get("/api/esp32/toolchain/status")
+def esp32_toolchain_status():
+    return esp32_toolchain.status()
+
+@app.post("/api/esp32/toolchain/install")
+def esp32_toolchain_install(req: ToolchainInstallRequest):
+    try:
+        steps, env, cleanup = esp32_toolchain.plan_install(
+            req.item, req.version, req.targets, req.with_esp32_core)
+    except esp32_toolchain.ToolchainValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except esp32_toolchain.PrereqMissing as e:
+        raise HTTPException(status_code=424, detail={
+            "message": str(e), "item": e.item, "missing": e.missing})
+    if not esp32_toolchain.acquire():
+        if cleanup:
+            try:
+                os.unlink(cleanup)
+            except OSError:
+                pass
+        raise HTTPException(status_code=409, detail="A toolchain install is already running.")
+    return StreamingResponse(esp32_toolchain.run_steps(steps, env, cleanup),
+                             media_type="text/plain")
 
 # ── Startup ───────────────────────────────────────────────────────────────────
 
@@ -507,14 +1166,24 @@ def parse_args():
     parser.add_argument("--port", type=int, default=22, help="SSH port")
     parser.add_argument("--password", default=None, help="SSH password")
     parser.add_argument("--key-file", default=None, help="SSH private key file")
+    parser.add_argument("--devices-file", default=None,
+                        help="Device registry JSON (default: per-user config dir, "
+                             "or $BAKERPI_DEVICES_FILE)")
+    parser.add_argument("--profiles-file", default=None,
+                        help="Fleet install profiles JSON (default: per-user config dir, "
+                             "or $BAKERPI_PROFILES_FILE)")
     parser.add_argument("--server-port", type=int, default=8080, help="Web UI port")
     parser.add_argument("--no-browser", action="store_true", help="Don't open browser automatically")
     return parser.parse_args()
 
 def main():
     args = parse_args()
-    config["mode"] = args.mode
-    config["host"] = args.host
+    config.update(mode=args.mode, host=args.host, user=args.user,
+                  port=args.port, key_file=args.key_file)
+    if args.devices_file:
+        registry.path = Path(args.devices_file).expanduser()
+    if args.profiles_file:
+        profiles.path = Path(args.profiles_file).expanduser()
 
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -533,7 +1202,6 @@ def main():
         def open_browser():
             time.sleep(1.5)
             webbrowser.open(f"http://localhost:{args.server_port}")
-        import threading
         threading.Thread(target=open_browser, daemon=True).start()
 
     log.info(f"Starting web UI on http://0.0.0.0:{args.server_port}")

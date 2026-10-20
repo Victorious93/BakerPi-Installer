@@ -10,10 +10,17 @@
 
 added_files = [
     ("server.py",       "."),
+    ("device_registry.py", "."),
+    ("profile_registry.py", "."),
+    ("esp32_flasher.py", "."),
+    ("esp32_toolchain.py", "."),
+    ("esp32_fleet_profiles.py", "."),
+    ("esp32_provision.py", "."),
     ("static",          "static"),
     ("tools",           "tools"),
     ("install_scripts", "install_scripts"),
     ("requirements.txt", "."),
+    ("docs/MANUAL.md",  "docs"),   # served by /api/manual (in-app Help view)
 ]
 
 a = Analysis(
@@ -22,6 +29,13 @@ a = Analysis(
     binaries=[],
     datas=added_files,
     hiddenimports=[
+        "esp32_flasher",
+        "esp32_toolchain",
+        "esp32_fleet_profiles",
+        "esp32_provision",
+        "serial",
+        "serial.tools.list_ports",
+        "multipart",
         "uvicorn.logging",
         "uvicorn.loops",
         "uvicorn.loops.auto",
@@ -40,6 +54,8 @@ a = Analysis(
         "starlette.responses",
         "anyio",
         "anyio._backends._asyncio",
+        "device_registry",
+        "profile_registry",
         "paramiko",
         "paramiko.transport",
         "cryptography",

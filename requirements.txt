@@ -7,3 +7,4 @@ pywebview>=4.4.1
 
 # Build-time only (not needed to run from source)
 # pyinstaller>=6.0
+pyserial>=3.5

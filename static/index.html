@@ -284,6 +284,29 @@ button { cursor: pointer; font: inherit; }
   color: var(--text); padding: 5px 8px; font-size: 12px; font-family: var(--mono);
 }
 
+
+/* ── ESP32 Flashing Panel (untested on hardware) ───────────────── */
+#esp32-panel { display:none; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); padding:16px 18px; margin-bottom:16px; position:relative; }
+#esp32-panel.visible { display:block; }
+#esp32-panel::before { content:""; position:absolute; inset:-1px; border-radius:inherit; padding:1px;
+  background:linear-gradient(90deg, #00f0ff, #ff00e5);
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor; mask-composite:exclude; pointer-events:none; }
+#esp32-panel h4 { font-size:13px; font-weight:600; margin-bottom:10px; display:flex; align-items:center; gap:10px; }
+#esp32-panel .neon-ring { width:22px; height:22px; }
+#esp32-panel select, #esp32-panel input[type=text] { background:var(--bg); border:1px solid var(--border);
+  border-radius:var(--radius); color:var(--text); padding:5px 8px; font-size:12px; font-family:var(--mono); }
+#esp32-output { font-family:var(--mono); font-size:12px; background:var(--bg); border:1px solid var(--border);
+  border-radius:4px; padding:8px 12px; margin-top:10px; max-height:320px; overflow:auto; white-space:pre-wrap; display:none; }
+#esp32-tc-output { font-family:var(--mono); font-size:12px; background:var(--bg); border:1px solid var(--border);
+  border-radius:4px; padding:8px 12px; margin-top:10px; max-height:320px; overflow:auto; white-space:pre-wrap; display:none; }
+.tc-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:6px 0; font-size:12px; }
+.tc-dot { width:9px; height:9px; border-radius:50%; background:var(--muted); display:inline-block; }
+.tc-dot.ok { background:#00f0ff; box-shadow:0 0 6px #00f0ff; } .tc-dot.no { background:#ff00e5; box-shadow:0 0 6px #ff00e5; }
+.untested-badge { font-size:10px; font-weight:600; color:#ff00e5; border:1px solid #ff00e5;
+  border-radius:99px; padding:1px 8px; text-shadow:0 0 4px #ff00e5; }
+
 /* ── Status Filter Bar ──────────────────────────────────────────── */
 #filter-bar {
   display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap;
@@ -317,6 +340,94 @@ button { cursor: pointer; font: inherit; }
 #ssh-status.ok { color: var(--green); }
 #ssh-status.err { color: var(--red); }
 
+/* ── Devices Panel ──────────────────────────────────────────────── */
+#devices-panel, #profiles-panel {
+  display: none; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px 18px; margin-bottom: 16px;
+}
+#devices-panel.visible, #profiles-panel.visible { display: block; }
+#devices-panel .panel-head, #profiles-panel .panel-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; flex-wrap: wrap; }
+#devices-panel h4, #profiles-panel h4 { font-size: 13px; font-weight: 600; }
+#devices-panel .panel-sub, #profiles-panel .panel-sub { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+#devices-panel .spacer, #profiles-panel .spacer { flex: 1; }
+.device-row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius);
+  margin-bottom: 8px; background: var(--bg);
+}
+.device-row.selected { border-color: rgba(88,166,255,0.5); background: rgba(88,166,255,0.05); }
+.device-row .dev-check, .device-row .dev-radio { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+.device-row .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+.device-row .dot.ok { background: var(--green); }
+.device-row .dot.off { background: var(--red); }
+.dev-main { flex: 1; min-width: 160px; }
+.dev-name { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.dev-sub { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+.dev-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.dev-pass { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); padding: 4px 8px; font-size: 12px; width: 150px; }
+.badge.viewing { color: var(--accent); border-color: rgba(88,166,255,0.3); background: rgba(88,166,255,0.07); }
+.badge.dtype { color: var(--muted); border-color: var(--border); font-family: var(--mono); }
+.dev-col-head { display: flex; gap: 10px; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; padding: 0 10px 4px; }
+.dev-col-head span { width: 15px; text-align: center; }
+#device-form { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+#device-form.visible { display: block; }
+#device-form select {
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--text); padding: 6px 10px; font-size: 13px;
+}
+#device-form-status { font-size: 12px; }
+#device-form-status.err { color: var(--red); }
+/* ── Profiles Panel ─────────────────────────────────────────────── */
+.profile-row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius);
+  margin-bottom: 8px; background: var(--bg);
+}
+.profile-row .prof-main { flex: 1; min-width: 200px; }
+.profile-row .prof-name { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.profile-row .prof-desc { font-size: 12px; color: var(--muted); }
+.profile-row .prof-tools { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+.profile-row .prof-warn { font-size: 11px; color: var(--red); }
+#profile-form { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+#profile-form.visible { display: block; }
+#profile-form textarea {
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--text); padding: 6px 10px; font-size: 13px; min-width: 260px; resize: vertical;
+}
+#pf-tool-search {
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--text); padding: 5px 10px; font-size: 12px; width: 220px;
+}
+#pf-tools {
+  max-height: 260px; overflow-y: auto; border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 6px 10px; margin: 6px 0 10px; background: var(--bg);
+}
+#pf-tools .pf-cat { font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); margin: 8px 0 4px; }
+#pf-tools label { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 2px 0; cursor: pointer; }
+#pf-tools input { accent-color: var(--accent); }
+#pf-order { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-bottom: 8px; }
+#profile-form-status { font-size: 12px; }
+#profile-form-status.err { color: var(--red); }
+#device-chip { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#sys-device { color: var(--text); font-weight: 500; }
+#view-device { font-size: 12px; color: var(--accent); }
+
+/* Per-device job logs */
+#term-tabs { display: none; gap: 6px; padding: 8px 18px 0; flex-wrap: wrap; flex-shrink: 0; border-bottom: 1px solid var(--border); }
+#term-tabs.visible { display: flex; }
+.term-tab {
+  background: none; border: 1px solid var(--border); border-bottom: none;
+  border-radius: 6px 6px 0 0; color: var(--muted); padding: 4px 12px; font-size: 12px;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.term-tab.active { color: var(--text); background: #010409; border-color: var(--accent); }
+.term-tab .tdot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.term-tab .tdot.running { background: var(--amber); animation: pulse 1.2s ease infinite; }
+.term-tab .tdot.done { background: var(--green); }
+.term-tab .tdot.failed { background: var(--red); }
+.term-pane { display: none; }
+.term-pane.active { display: block; }
+
 /* ── Responsive ─────────────────────────────────────────────────── */
 @media (max-width: 640px) {
   :root { --sidebar-w: 56px; }
@@ -325,6 +436,7 @@ button { cursor: pointer; font: inherit; }
   #main { padding: 14px 12px; }
   #grid { grid-template-columns: 1fr; }
   #sysinfo .sys-detail { display: none; }
+  #device-chip { max-width: 120px; }
   #search { width: 140px; }
   #topbar h1 span { display: none; }
 }
@@ -332,6 +444,25 @@ button { cursor: pointer; font: inherit; }
   :root { --sidebar-w: 0px; }
   #sidebar { display: none; }
 }
+
+/* ── Help / Manual view ── */
+#help-view { display:none; position:fixed; inset:0; z-index:900; background:var(--bg); overflow:auto; }
+#help-view.visible { display:block; }
+#help-inner { max-width:860px; margin:0 auto; padding:24px 20px 60px; }
+#help-head { display:flex; align-items:center; gap:16px; margin-bottom:16px; }
+.neon-ring { width:56px; height:56px; border-radius:50%; flex:none;
+  background:conic-gradient(#00f0ff, #ff00e5, #00f0ff);
+  -webkit-mask:radial-gradient(circle, transparent 55%, #000 57%);
+          mask:radial-gradient(circle, transparent 55%, #000 57%);
+  filter:drop-shadow(0 0 6px #00f0ff) drop-shadow(0 0 10px #ff00e5); }
+#help-body { line-height:1.55; font-size:14px; }
+#help-body h1,#help-body h2,#help-body h3 { margin:18px 0 8px; }
+#help-body pre { background:var(--surface, #161b22); padding:10px; border-radius:6px; overflow:auto; }
+#help-body code { font-family:monospace; }
+#help-body table { border-collapse:collapse; margin:8px 0; }
+#help-body td,#help-body th { border:1px solid var(--border, #30363d); padding:4px 8px; text-align:left; vertical-align:top; }
+#help-body blockquote { border-left:3px solid #ff00e5; margin:8px 0; padding:4px 12px; color:var(--muted); }
+#help-body ul { padding-left:22px; }
 </style>
 </head>
 <body>
@@ -341,13 +472,17 @@ button { cursor: pointer; font: inherit; }
     <h1>BakerPi <span>Tool Installer</span></h1>
     <div id="sysinfo">
       <span><span id="conn-dot" class="dot error"></span><span id="conn-label" class="sys-detail">Disconnected</span></span>
+      <span id="sys-device" class="sys-detail" title="Device these stats belong to"></span>
       <span id="sys-host" class="sys-detail"></span>
       <span id="sys-mem" class="sys-detail"></span>
       <span id="sys-disk" class="sys-detail"></span>
       <span id="sys-temp" class="sys-detail"></span>
     </div>
     <div class="spacer"></div>
+    <button id="profiles-btn" class="btn btn-sm" onclick="toggleProfilesPanel()" title="Fleet install profiles: named toolsets you can apply to devices">📦 Profiles</button>
+    <button id="device-chip" class="btn btn-sm" onclick="toggleDevicesPanel()" title="Manage devices / choose target">🖧 <span id="device-chip-label">Devices</span></button>
     <button id="ssh-toggle-btn" class="btn btn-sm" onclick="toggleSSHPanel()">⚙ SSH</button>
+    <button id="help-btn" class="btn btn-sm" onclick="toggleHelp()" title="User manual">❓ Help</button>
     <button id="theme-btn" onclick="toggleTheme()">☀ Light</button>
   </header>
 
@@ -361,10 +496,129 @@ button { cursor: pointer; font: inherit; }
         <span class="cat-count" id="count-all">—</span>
       </button>
       <div id="cat-list"></div>
+      <div class="sidebar-section">Flashing</div>
+      <button class="cat-btn" data-cat="flashing" onclick="selectCat('flashing', this)">
+        <span class="cat-icon">⚡</span>
+        <span class="cat-label">ESP32 Flashing</span>
+      </button>
     </nav>
 
     <!-- Main -->
     <main id="main">
+      <!-- ESP32 Flashing Panel (esptool; untested on hardware) -->
+      <div id="esp32-panel">
+        <h4><span class="neon-ring" aria-hidden="true"></span> ESP32 Flashing (esptool)
+          <span class="untested-badge" title="Not yet verified on a real ESP32 board">UNTESTED ON HARDWARE</span></h4>
+        <div class="vnc-note" style="margin-bottom:10px">
+          Plug the ESP32 into <b>the computer running this app</b> (not the remote Pi). Requires
+          <code>esptool</code> on that computer. <span id="esp32-tool-status"></span>
+        </div>
+        <div class="form-row" style="align-items:flex-end">
+          <div class="form-field"><label>Serial port</label>
+            <div style="display:flex;gap:6px"><select id="esp32-port"></select>
+            <button class="btn btn-sm" onclick="esp32LoadPorts()" title="Rescan serial ports">↻</button></div></div>
+          <div class="form-field"><label>Chip</label><select id="esp32-chip"></select></div>
+          <div class="form-field"><label>Baud</label><select id="esp32-baud"></select></div>
+          <div class="form-field"><label>Flash address</label><input type="text" id="esp32-addr" value="0x10000" maxlength="10" size="10"></div>
+          <div class="form-field"><label>Firmware (.bin)</label><input type="file" id="esp32-fw" accept=".bin"></div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn primary btn-sm" id="esp32-flash-btn" onclick="esp32Flash()">⚡ Flash</button>
+          <span id="esp32-status" style="font-size:12px;color:var(--muted)"></span>
+        </div>
+        <pre id="esp32-output"></pre>
+        <!-- ESP32 Dev Toolchain (ESP-IDF / Arduino-CLI; untested on hardware) -->
+        <h4 style="margin-top:18px"><span class="neon-ring" aria-hidden="true"></span> Dev Toolchain
+          <span class="untested-badge" title="Not yet verified end-to-end on a real Pi Zero">UNTESTED ON HARDWARE</span></h4>
+        <div style="font-size:12px;color:var(--muted)">Installs onto <b>the computer running this app</b> (Linux/macOS).
+          ESP-IDF is large (1–2 GB) and <b>very slow on a Pi Zero</b> (can take an hour or more, and may fail if no armv6 toolchain is available).</div>
+        <div class="tc-row"><span class="tc-dot" id="tc-dot-idf"></span><b>ESP-IDF</b>
+          <input type="text" id="tc-idf-version" value="v5.3.1" maxlength="10" size="8" title="Release tag">
+          <select id="tc-idf-target"></select>
+          <button class="btn btn-sm tc-btn" onclick="esp32TcInstall('esp-idf')">Install ESP-IDF</button>
+          <span id="tc-info-idf" style="color:var(--muted)"></span></div>
+        <div class="tc-row"><span class="tc-dot" id="tc-dot-ard"></span><b>Arduino-CLI</b>
+          <label><input type="checkbox" id="tc-ard-core" checked> + esp32 core</label>
+          <button class="btn btn-sm tc-btn" onclick="esp32TcInstall('arduino-cli')">Install Arduino-CLI</button>
+          <span id="tc-info-ard" style="color:var(--muted)"></span></div>
+        <pre id="esp32-tc-output"></pre>
+        <div class="vnc-note" style="margin-top:10px">
+          Writing the wrong image or address can leave the board unbootable until re-flashed.
+          This feature has not been verified on a real ESP32 yet.
+        </div>
+
+        <!-- ESP32 Detect / Device Info (feature 2; untested on hardware) -->
+        <div id="esp32-detect" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
+          <h4><span class="neon-ring" aria-hidden="true"></span> Detect / Device Info
+            <span class="untested-badge" title="Not yet verified on a real ESP32 board">UNTESTED ON HARDWARE</span></h4>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+            <button class="btn btn-sm" onclick="esp32LoadDevices()">🔍 Scan devices</button>
+            <select id="esp32-info-op" title="esptool read-only command">
+              <option value="flash_id">flash_id (chip + MAC + flash)</option>
+              <option value="read_mac">read_mac</option>
+              <option value="chip_id">chip_id</option>
+            </select>
+            <button class="btn primary btn-sm" id="esp32-info-btn" onclick="esp32ReadInfo()">Read chip info</button>
+            <span id="esp32-info-status" style="font-size:12px;color:var(--muted)"></span>
+          </div>
+          <div id="esp32-devices" style="font-size:12px"></div>
+          <div id="esp32-info" style="font-size:12px;margin-top:8px"></div>
+          <details style="margin-top:6px"><summary style="font-size:12px;cursor:pointer">Raw esptool output</summary>
+            <pre id="esp32-info-raw" style="display:block"></pre></details>
+          <div class="vnc-note" style="margin-top:8px">Reading chip info resets the board into the bootloader briefly.
+            "Likely ESP32" is a guess from the USB bridge VID:PID only. Not verified on a real ESP32 yet.</div>
+        </div>
+
+        <!-- ESP32 Fleet Firmware (feature 4; untested on hardware) -->
+        <div id="esp32-fleet" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
+          <h4><span class="neon-ring" aria-hidden="true"></span> Fleet Firmware (VictorModem / Pyra Claw)
+            <span class="untested-badge" title="Offsets come from project notes and have not been verified on a real board">UNTESTED ON HARDWARE</span></h4>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Neither project publishes release
+            binaries: build with PlatformIO first, then point at <code>.pio/build/&lt;env&gt;/</code> or upload the .bin files.
+            Uses the port and baud picked above.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+            <div class="form-field"><label>Profile</label><select id="fleet-profile" onchange="fleetFillEnvs()"></select></div>
+            <div class="form-field"><label>Env</label><select id="fleet-env" onchange="fleetShowEnv()"></select></div>
+            <div class="form-field" style="flex:1;min-width:220px"><label>Local build dir (absolute path, optional)</label>
+              <input type="text" id="fleet-build-dir" placeholder="/home/pi/victormodem/.pio/build/esp32s3_bridge5g" style="width:100%"></div>
+          </div>
+          <div id="fleet-env-info" style="font-size:12px;margin-top:8px"></div>
+          <div class="vnc-note" style="margin-top:6px"><b>boot_app0.bin</b> is usually <i>not</i> in
+            <code>.pio/build/&lt;env&gt;/</code>: it ships with the Arduino-ESP32 framework
+            (<code>~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin</code>).
+            Upload it here if it isn't found; if it is skipped, OTA boot selection data at 0xe000 is left as-is.</div>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+            <button class="btn primary btn-sm" id="fleet-flash-btn" onclick="fleetFlash()">⚡ Flash profile</button>
+            <span id="fleet-status" style="font-size:12px;color:var(--muted)"></span>
+          </div>
+          <pre id="fleet-output" style="font-family:var(--mono);font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px;max-height:260px;overflow:auto;white-space:pre-wrap;display:none"></pre>
+          <div class="vnc-note" style="margin-top:8px" id="fleet-monitor-note">Serial monitor: after flashing, open a
+            serial monitor (e.g. <code>pio device monitor -b 115200</code>) for logs. Use <b>USB Provisioning</b>
+            below to configure a board running firmware with serial provisioning. Offsets are not verified on hardware.</div>
+        </div>
+        <!-- ESP32 USB serial provisioning (contract v1; untested on hardware) -->
+        <div id="esp32-prov" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
+          <h4><span class="neon-ring" aria-hidden="true"></span> USB Provisioning (VictorModem / Pyra Claw)
+            <span class="untested-badge" title="Mocked serial tests only; not verified on a real board">UNTESTED ON HARDWARE</span></h4>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Uses the port picked above, 115200 baud.
+            The board must run firmware with serial provisioning (Pyra Claw: merged; VictorModem: PR #3, not merged).
+            It accepts commands for 10 s after boot, or any time while unprovisioned. Changes apply after a reboot.
+            Secrets are never shown or prefilled; leave a secret blank to keep it (Pyra Claw only).</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <label style="font-size:12px"><input type="checkbox" id="prov-reset"> reset board on open</label>
+            <button class="btn btn-sm" id="prov-hello-btn" onclick="provHello()">🔍 Detect</button>
+            <button class="btn btn-sm prov-need" onclick="provGet()" disabled>Read current config</button>
+            <button class="btn primary btn-sm prov-need" onclick="provApply()" disabled>Apply</button>
+            <button class="btn btn-sm prov-need" onclick="provSimple('reboot')" disabled>Reboot</button>
+            <button class="btn btn-sm prov-need" style="color:var(--red,#e55)" onclick="provSimple('factory_reset')" disabled>Factory reset…</button>
+            <span id="prov-status" style="font-size:12px;color:var(--muted)"></span>
+          </div>
+          <div id="prov-info" style="font-size:12px;margin-top:8px"></div>
+          <form id="prov-form" autocomplete="off" onsubmit="return false" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"></form>
+          <pre id="prov-output" style="font-family:var(--mono);font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px;max-height:220px;overflow:auto;white-space:pre-wrap;display:none"></pre>
+        </div>
+      </div>
+
       <!-- VNC Desktop Control Panel -->
       <div id="vnc-panel">
         <h4>
@@ -389,6 +643,85 @@ button { cursor: pointer; font: inherit; }
         </div>
       </div>
 
+      <!-- Devices panel -->
+      <div id="devices-panel">
+        <div class="panel-head">
+          <h4>Devices</h4>
+          <div class="spacer"></div>
+          <button class="btn btn-sm" onclick="showDeviceForm()">+ Add device</button>
+          <button class="btn btn-sm" onclick="toggleDevicesPanel()">Close</button>
+        </div>
+        <div class="panel-sub">
+          <b>Target</b> = devices that Install / Update / Remove run on (in parallel).
+          <b>Viewing</b> = the device whose installed-status and system info are shown.
+        </div>
+        <div class="dev-col-head"><span title="Target">T</span><span title="Viewing">V</span></div>
+        <div id="device-list"></div>
+        <div id="device-form">
+          <div class="form-row">
+            <div class="form-field"><label>Label</label><input id="df-label" placeholder="e.g. Bench Pi"></div>
+            <div class="form-field"><label>Type</label>
+              <select id="df-type" onchange="deviceFormTypeChanged()">
+                <option value="ssh">ssh</option>
+                <option value="usb-rndis">usb-rndis (SSH over USB)</option>
+                <option value="local">local (this device)</option>
+              </select>
+            </div>
+            <div class="form-field df-remote"><label>Host / IP</label><input id="df-host" placeholder="172.16.0.1"></div>
+            <div class="form-field df-remote"><label>User</label><input id="df-user" placeholder="root"></div>
+            <div class="form-field df-remote"><label>SSH port</label><input id="df-port" type="number" placeholder="22"></div>
+            <div class="form-field df-remote"><label>Key file (optional)</label><input id="df-key" placeholder="path to private key"></div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <button class="btn primary btn-sm" onclick="saveDevice()" id="df-save">Save</button>
+            <button class="btn btn-sm" onclick="hideDeviceForm()">Cancel</button>
+            <span id="device-form-status"></span>
+          </div>
+        </div>
+        <div class="vnc-note" style="margin-top:10px">
+          Passwords are never saved — they are kept in memory for this session only.
+          Multi-device support is untested on real Pi Zero hardware.
+        </div>
+      </div>
+
+      <!-- Profiles panel -->
+      <div id="profiles-panel">
+        <div class="panel-head">
+          <h4>Install profiles</h4>
+          <div class="spacer"></div>
+          <button class="btn btn-sm" onclick="showProfileForm()">+ New profile</button>
+          <button class="btn btn-sm" onclick="toggleProfilesPanel()">Close</button>
+        </div>
+        <div class="panel-sub">
+          A profile is a named set of tools. <b>Apply</b> installs every tool in it, in order, on the
+          current target device(s) (<span id="profiles-targets">the selected devices</span>). Choose targets in the Devices panel.
+        </div>
+        <div id="profile-list"></div>
+        <div id="profile-form">
+          <div class="form-row">
+            <div class="form-field"><label>Name</label><input id="pf-name" placeholder="e.g. Recon kit" maxlength="64"></div>
+            <div class="form-field"><label>Description (optional)</label><textarea id="pf-desc" rows="1" maxlength="500" placeholder="What is this set for?"></textarea></div>
+          </div>
+          <div class="form-row" style="align-items:center;margin-bottom:0">
+            <div class="form-field"><label>Tools <span id="pf-count"></span></label></div>
+            <input id="pf-tool-search" type="search" placeholder="Filter tools…" oninput="renderProfileTools()">
+            <button class="btn btn-sm" onclick="profileUseSelection()" title="Replace the picked tools with the tools currently selected in the grid">Use grid selection</button>
+            <button class="btn btn-sm" onclick="profilePickedClear()">Clear</button>
+          </div>
+          <div id="pf-tools"></div>
+          <div id="pf-order"></div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <button class="btn primary btn-sm" onclick="saveProfile()" id="pf-save">Save</button>
+            <button class="btn btn-sm" onclick="hideProfileForm()">Cancel</button>
+            <span id="profile-form-status"></span>
+          </div>
+        </div>
+        <div class="vnc-note" style="margin-top:10px">
+          Profiles hold tool ids only (no passwords or hosts) and are stored per user, outside the repo.
+          Profile apply is untested on real Pi Zero hardware.
+        </div>
+      </div>
+
       <!-- SSH panel -->
       <div id="ssh-panel">
         <h4>Connect to Pi Zero via SSH (PC Mode)</h4>
@@ -410,6 +743,7 @@ button { cursor: pointer; font: inherit; }
         <div>
           <h2 id="cat-title">All Tools</h2>
           <div class="subtitle" id="cat-desc">Select tools to install on your Pi Zero 1.3</div>
+          <div class="subtitle" id="view-device"></div>
         </div>
         <div class="spacer"></div>
         <input id="search" type="search" placeholder="Search tools… ( / )" oninput="filterTools()" title="Press / to focus">
@@ -447,6 +781,18 @@ button { cursor: pointer; font: inherit; }
 
 <div id="toast-container"></div>
 
+<!-- Help / Manual view -->
+<div id="help-view" role="dialog" aria-label="User manual">
+  <div id="help-inner">
+    <div id="help-head">
+      <div class="neon-ring" aria-hidden="true"></div>
+      <h2 style="flex:1">BakerPi Manual</h2>
+      <button class="btn btn-sm" onclick="toggleHelp(false)">Close</button>
+    </div>
+    <div id="help-body">Loading…</div>
+  </div>
+</div>
+
 <!-- Modal -->
 <div id="modal-overlay" role="dialog" aria-modal="true">
   <div id="modal">
@@ -454,6 +800,7 @@ button { cursor: pointer; font: inherit; }
       <h3 id="modal-title">Installing…</h3>
       <button id="modal-close" onclick="closeModal()" aria-label="Close">×</button>
     </div>
+    <div id="term-tabs" role="tablist"></div>
     <div id="terminal" aria-label="Installation output"></div>
     <div id="modal-footer">
       <span id="modal-status">Waiting…</span>
@@ -472,13 +819,22 @@ let statusFilter = 'all';    // 'all' | 'installed' | 'not_installed'
 let selectedIds = new Set();
 let activeJobId = null;
 let sseSource = null;
+let devices = [];            // device registry (from /api/devices)
+let selectedDeviceIds = [];  // ordered; first = "viewing" (primary) device
+let editingDeviceId = null;  // null = adding a new device
+let connectingDeviceId = null;
+let profiles = [];           // fleet install profiles (from /api/profiles)
+let editingProfileId = null; // null = creating a new profile
+let pickedTools = [];        // ordered tool ids ticked in the profile form
 
 // ── Bootstrap ────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
   await loadCatalog();
+  await loadDevices();
+  await loadProfiles();
   await refreshStatuses();
   await refreshSystem();
-  setInterval(refreshSystem, 15000);
+  setInterval(() => { loadDevices(); refreshSystem(); }, 15000);
   initTheme();
 });
 
@@ -526,6 +882,15 @@ function selectCat(catId, btn) {
   document.getElementById('cat-desc').textContent = catId === 'all' ? 'All available capabilities for Pi Zero 1.3' : (catDef?.description || '');
   document.getElementById('search').value = '';
   resetStatusFilter();
+  const espPanel = document.getElementById('esp32-panel');
+  if (catId === 'flashing') {
+    document.getElementById('cat-title').textContent = 'ESP32 Flashing';
+    document.getElementById('cat-desc').textContent = 'Flash firmware to a USB-connected ESP32 with esptool (untested on hardware)';
+    espPanel.classList.add('visible');
+    esp32Init();
+  } else {
+    espPanel.classList.remove('visible');
+  }
   const vncPanel = document.getElementById('vnc-panel');
   if (catId === 'os_environments') {
     vncPanel.classList.add('visible');
@@ -702,6 +1067,27 @@ async function installOne(toolId) {
   await startJob([toolId], 'install');
 }
 
+function targetIds() {
+  return selectedDeviceIds.length ? [...selectedDeviceIds] : ['default'];
+}
+
+function deviceLabel(id) {
+  return (devices.find(d => d.id === id) || {}).label || id;
+}
+
+function targetSummary() {
+  const ids = targetIds();
+  return ids.length === 1 ? deviceLabel(ids[0]) : ids.length + ' devices';
+}
+
+// Extra confirmation when an action fans out to several devices.
+function confirmMultiDevice(verb, count) {
+  const ids = targetIds();
+  if (ids.length < 2) return true;
+  const names = ids.map(deviceLabel).join('\n  • ');
+  return confirm(`${verb} ${count} tool${count > 1 ? 's' : ''} on ${ids.length} devices?\n\n  • ${names}\n\nThey run in parallel.`);
+}
+
 async function installSelected() {
   if (!selectedIds.size) return;
   await startJob([...selectedIds], 'install');
@@ -725,14 +1111,20 @@ async function uninstallSelected() {
 }
 
 async function updateAllInstalled() {
-  openModal('Updating all installed tools…');
+  if (!confirmMultiDevice('Update all installed tools', 1)) return;
+  openModal('Updating all installed tools on ' + targetSummary() + '…');
   setModalStatus('Fetching installed list…', true);
   try {
-    const r = await fetch('/api/update-all', { method: 'POST' });
+    const r = await fetch('/api/update-all', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({device_ids: targetIds()})
+    });
     if (!r.ok) throw new Error(await r.text());
-    const { job_id, tool_ids } = await r.json();
+    const { job_id, tool_ids, devices: jobDevices, skipped_devices } = await r.json();
     activeJobId = job_id;
-    streamJob(job_id, tool_ids || [], 'update');
+    if (skipped_devices && skipped_devices.length)
+      showToast('Skipped (nothing installed / unreachable): ' + skipped_devices.map(d => d.label).join(', '), 'info');
+    streamJob(job_id, tool_ids || [], 'update', jobDevices);
   } catch (e) {
     appendTerminal('[ERROR] ' + e.message + '\n', 'error');
     setModalStatus('Error: ' + e.message, false);
@@ -748,7 +1140,8 @@ async function uninstallOne(toolId) {
 
 async function startJob(toolIds, action) {
   const verb = action === 'update' ? 'Updating' : action === 'uninstall' ? 'Removing' : 'Installing';
-  openModal(verb + ' ' + toolIds.length + ' tool' + (toolIds.length > 1 ? 's' : '') + '…');
+  if (!confirmMultiDevice(verb, toolIds.length)) return;
+  openModal(verb + ' ' + toolIds.length + ' tool' + (toolIds.length > 1 ? 's' : '') + ' on ' + targetSummary() + '…');
   setModalStatus('Starting…', true);
 
   toolIds.forEach(id => {
@@ -765,12 +1158,12 @@ async function startJob(toolIds, action) {
     const r = await fetch(endpoint, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({tool_ids: toolIds})
+      body: JSON.stringify({tool_ids: toolIds, device_ids: targetIds()})
     });
     if (!r.ok) throw new Error(await r.text());
-    const {job_id} = await r.json();
+    const {job_id, devices: jobDevices} = await r.json();
     activeJobId = job_id;
-    streamJob(job_id, toolIds, action);
+    streamJob(job_id, toolIds, action, jobDevices);
   } catch (e) {
     appendTerminal('[ERROR] ' + e.message + '\n', 'error');
     setModalStatus('Error: ' + e.message, false);
@@ -778,25 +1171,31 @@ async function startJob(toolIds, action) {
   }
 }
 
-function streamJob(jobId, toolIds, action) {
-  const term = document.getElementById('terminal');
-  term.innerHTML = '';
+function streamJob(jobId, toolIds, action, jobDevices) {
+  setupTerminalPanes(jobDevices || [{id: 'default', label: deviceLabel('default')}]);
 
   if (sseSource) sseSource.close();
   sseSource = new EventSource('/api/jobs/' + jobId + '/stream');
 
   sseSource.onmessage = (e) => {
     const data = JSON.parse(e.data);
+    if (data.device_status) { setTabStatus(data.device, data.device_status); return; }
     if (data.done) {
       sseSource.close();
-      const doneMsg = action === 'update' ? 'Update complete.' : action === 'uninstall' ? 'Removal complete.' : 'Installation complete.';
+      let doneMsg = action === 'update' ? 'Update complete.' : action === 'uninstall' ? 'Removal complete.' : 'Installation complete.';
+      const results = Object.values(data.devices || {});
+      if (results.length > 1) {
+        const failed = results.filter(s => s === 'failed').length;
+        const base = doneMsg.replace(/ complete\.$/, '');
+        doneMsg = `${base} finished on ${results.length} devices` + (failed ? ` — ${failed} failed.` : ' — all succeeded.');
+      }
       setModalStatus(doneMsg, false);
       toolIds.forEach(id => resetBtn(id, action));
       clearSelection();
       setTimeout(refreshStatuses, 1500);
       return;
     }
-    if (data.line) appendTerminal(data.line);
+    if (data.line) appendTerminal(data.line, undefined, data.device);
   };
 
   sseSource.onerror = () => {
@@ -807,8 +1206,43 @@ function streamJob(jobId, toolIds, action) {
   };
 }
 
-function appendTerminal(text, cls) {
+// One log pane per device; tabs only when a job targets several devices.
+function setupTerminalPanes(jobDevices) {
   const term = document.getElementById('terminal');
+  const tabs = document.getElementById('term-tabs');
+  term.innerHTML = '';
+  tabs.innerHTML = '';
+  jobDevices.forEach((d, i) => {
+    const pane = document.createElement('div');
+    pane.className = 'term-pane' + (i === 0 ? ' active' : '');
+    pane.dataset.dev = d.id;
+    term.appendChild(pane);
+    const tab = document.createElement('button');
+    tab.className = 'term-tab' + (i === 0 ? ' active' : '');
+    tab.dataset.dev = d.id;
+    tab.innerHTML = `<span class="tdot"></span>${escHtml(d.label)}`;
+    tab.onclick = () => showPane(d.id);
+    tabs.appendChild(tab);
+  });
+  tabs.classList.toggle('visible', jobDevices.length > 1);
+}
+
+function showPane(devId) {
+  document.querySelectorAll('.term-pane').forEach(p => p.classList.toggle('active', p.dataset.dev === devId));
+  document.querySelectorAll('.term-tab').forEach(t => t.classList.toggle('active', t.dataset.dev === devId));
+  const term = document.getElementById('terminal');
+  term.scrollTop = term.scrollHeight;
+}
+
+function setTabStatus(devId, status) {
+  const tab = document.querySelector(`.term-tab[data-dev="${CSS.escape(devId)}"] .tdot`);
+  if (tab) tab.className = 'tdot ' + status;
+}
+
+function appendTerminal(text, cls, devId) {
+  const root = document.getElementById('terminal');
+  const term = (devId && root.querySelector(`.term-pane[data-dev="${CSS.escape(devId)}"]`))
+    || root.querySelector('.term-pane') || root;
   const span = document.createElement('span');
   if (cls) span.className = 'terminal-line ' + cls;
   // Color based on content
@@ -817,7 +1251,7 @@ function appendTerminal(text, cls) {
   else if (/^=+$|^Installing:|^Updating:|^\$/.test(text.trim())) span.className = 'terminal-line heading';
   span.textContent = text;
   term.appendChild(span);
-  term.scrollTop = term.scrollHeight;
+  root.scrollTop = root.scrollHeight;
 }
 
 function resetBtn(toolId, action) {
@@ -839,6 +1273,7 @@ function resetBtn(toolId, action) {
 function openModal(title) {
   document.getElementById('modal-title').textContent = title;
   document.getElementById('terminal').innerHTML = '';
+  document.getElementById('term-tabs').classList.remove('visible');
   document.getElementById('modal-overlay').classList.add('open');
 }
 
@@ -857,6 +1292,7 @@ async function refreshSystem() {
   try {
     const r = await fetch('/api/system');
     const d = await r.json();
+    document.getElementById('sys-device').textContent = d.device_label ? '🖧 ' + d.device_label : '';
     if (d.error) {
       setConnected(false);
       return;
@@ -907,6 +1343,354 @@ async function connectSSH() {
   } catch (e) {
     status.className = 'err';
     status.textContent = '✗ ' + e.message;
+  }
+}
+
+// ── Devices ──────────────────────────────────────────────────────────────────
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) {
+    let msg = r.statusText;
+    try { const j = await r.json(); msg = typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail); } catch {}
+    throw new Error(msg);
+  }
+  return r.json();
+}
+
+const jsonOpts = (method, body) => ({method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+
+async function loadDevices() {
+  try {
+    const d = await api('/api/devices');
+    devices = d.devices;
+    selectedDeviceIds = d.selected;
+    updateDeviceChip();
+    renderDevices();
+    renderProfiles();
+  } catch (e) { /* backend not ready / offline */ }
+}
+
+function updateDeviceChip() {
+  const primary = devices.find(d => d.id === selectedDeviceIds[0]);
+  const extra = selectedDeviceIds.length - 1;
+  document.getElementById('device-chip-label').textContent =
+    (primary ? primary.label : 'Devices') + (extra > 0 ? ` +${extra}` : '');
+  document.getElementById('device-chip').title =
+    'Targets: ' + selectedDeviceIds.map(deviceLabel).join(', ');
+  const view = document.getElementById('view-device');
+  if (view) view.textContent = primary ? '🖧 Showing status for: ' + primary.label : '';
+}
+
+function toggleDevicesPanel() {
+  document.getElementById('devices-panel').classList.toggle('visible');
+  renderDevices();
+}
+
+function renderDevices() {
+  const list = document.getElementById('device-list');
+  if (!list || !document.getElementById('devices-panel').classList.contains('visible')) return;
+  const ae = document.activeElement;
+  if (list.contains(ae) && ae.tagName === 'INPUT' && ae.type !== 'checkbox' && ae.type !== 'radio') return; // don't clobber typing
+  list.innerHTML = devices.map(d => {
+    const sel = selectedDeviceIds.includes(d.id);
+    const primary = selectedDeviceIds[0] === d.id;
+    const sub = d.type === 'local' ? 'this device (on-device)' : `${escHtml(d.user)}@${escHtml(d.host)}:${d.port}`;
+    const connectUi = d.type === 'local' ? '' : connectingDeviceId === d.id
+      ? `<input type="password" class="dev-pass" id="dp-${d.id}" placeholder="password (optional)" onkeydown="if(event.key==='Enter')connectDevice('${d.id}')">
+         <button class="btn primary btn-sm" onclick="connectDevice('${d.id}')">Connect</button>
+         <button class="btn btn-sm" onclick="connectingDeviceId=null;renderDevices()">Cancel</button>`
+      : `<button class="btn btn-sm" onclick="startConnect('${d.id}')">${d.connected ? '↻ Reconnect' : '⚡ Connect'}</button>`;
+    const editUi = d.builtin ? '' : `
+      <button class="btn btn-sm" onclick="showDeviceForm('${d.id}')">Edit</button>
+      <button class="btn btn-sm danger" onclick="removeDevice('${d.id}')">✕</button>`;
+    return `<div class="device-row ${sel ? 'selected' : ''}" id="dev-${d.id}">
+      <input type="checkbox" class="dev-check" ${sel ? 'checked' : ''} title="Target for install / update / remove" onchange="toggleTarget('${d.id}', this.checked)">
+      <input type="radio" class="dev-radio" name="dev-primary" ${primary ? 'checked' : ''} title="Show status / system info of this device" onchange="setPrimary('${d.id}')">
+      <span class="dot ${d.connected ? 'ok' : 'off'}" title="${d.connected ? 'Connected' : 'Not connected'}"></span>
+      <div class="dev-main">
+        <div class="dev-name">${escHtml(d.label)}
+          <span class="badge dtype">${escHtml(d.type)}</span>
+          ${d.builtin ? '<span class="badge builtin">CLI default</span>' : ''}
+          ${primary ? '<span class="badge viewing">viewing</span>' : ''}
+        </div>
+        <div class="dev-sub">${sub}</div>
+      </div>
+      <div class="dev-actions">${connectUi}${editUi}</div>
+    </div>`;
+  }).join('');
+  if (connectingDeviceId) { const el = document.getElementById('dp-' + connectingDeviceId); if (el) el.focus(); }
+}
+
+async function applySelection(ids) {
+  try {
+    const d = await api('/api/devices/selected', jsonOpts('PUT', {device_ids: ids}));
+    selectedDeviceIds = d.selected;
+  } catch (e) {
+    showToast('Device selection: ' + e.message, 'error');
+  }
+  await loadDevices();
+  await refreshStatuses();
+  await refreshSystem();
+}
+
+function toggleTarget(id, checked) {
+  let ids = [...selectedDeviceIds];
+  if (checked) { if (!ids.includes(id)) ids.push(id); }
+  else {
+    ids = ids.filter(x => x !== id);
+    if (!ids.length) { showToast('At least one device must stay selected.', 'info'); renderDevices(); return; }
+  }
+  applySelection(ids);
+}
+
+function setPrimary(id) {
+  applySelection([id, ...selectedDeviceIds.filter(x => x !== id)]);
+}
+
+function startConnect(id) {
+  connectingDeviceId = id;
+  renderDevices();
+}
+
+async function connectDevice(id) {
+  const pw = (document.getElementById('dp-' + id) || {}).value || null;
+  connectingDeviceId = null;
+  showToast('Connecting to ' + deviceLabel(id) + '…', 'info');
+  try {
+    await api(`/api/devices/${encodeURIComponent(id)}/connect`, jsonOpts('POST', {password: pw}));
+    showToast('Connected to ' + deviceLabel(id), 'success');
+  } catch (e) {
+    showToast('Connect failed: ' + e.message, 'error');
+  }
+  await loadDevices();
+  await refreshStatuses();
+  await refreshSystem();
+}
+
+function deviceFormTypeChanged() {
+  const t = document.getElementById('df-type').value;
+  document.querySelectorAll('.df-remote').forEach(el => el.style.display = t === 'local' ? 'none' : '');
+  document.getElementById('df-host').placeholder = t === 'usb-rndis' ? '172.16.0.1 (default)' : 'hostname or IP';
+}
+
+function showDeviceForm(id) {
+  editingDeviceId = id || null;
+  const d = devices.find(x => x.id === id) || {};
+  document.getElementById('df-label').value = d.label || '';
+  document.getElementById('df-type').value = d.type || 'ssh';
+  document.getElementById('df-host').value = d.type === 'local' ? '' : (d.host || '');
+  document.getElementById('df-user').value = d.user || '';
+  document.getElementById('df-port').value = d.port && id ? d.port : '';
+  document.getElementById('df-key').value = d.key_file || '';
+  document.getElementById('df-save').textContent = id ? 'Save changes' : 'Add device';
+  document.getElementById('device-form-status').textContent = '';
+  document.getElementById('devices-panel').classList.add('visible');
+  document.getElementById('device-form').classList.add('visible');
+  deviceFormTypeChanged();
+  document.getElementById('df-label').focus();
+}
+
+function hideDeviceForm() {
+  editingDeviceId = null;
+  document.getElementById('device-form').classList.remove('visible');
+}
+
+async function saveDevice() {
+  const status = document.getElementById('device-form-status');
+  const val = id => document.getElementById(id).value.trim();
+  const body = {
+    label: val('df-label'), type: val('df-type'), host: val('df-host'),
+    user: val('df-user'), key_file: val('df-key'),
+  };
+  const port = val('df-port');
+  body.port = port ? parseInt(port, 10) : null;
+  status.className = '';
+  status.textContent = 'Saving…';
+  try {
+    if (editingDeviceId) await api('/api/devices/' + encodeURIComponent(editingDeviceId), jsonOpts('PUT', body));
+    else await api('/api/devices', jsonOpts('POST', body));
+    hideDeviceForm();
+    await loadDevices();
+    showToast('Device saved', 'success');
+  } catch (e) {
+    status.className = 'err';
+    status.textContent = '✗ ' + e.message;
+  }
+}
+
+async function removeDevice(id) {
+  if (!confirm(`Remove device "${deviceLabel(id)}" from the inventory?\n\nThis only forgets the entry; nothing is changed on the Pi.`)) return;
+  try {
+    await api('/api/devices/' + encodeURIComponent(id), {method: 'DELETE'});
+    await loadDevices();
+    await refreshStatuses();
+    await refreshSystem();
+  } catch (e) {
+    showToast('Remove failed: ' + e.message, 'error');
+  }
+}
+
+// ── Profiles ─────────────────────────────────────────────────────────────────
+function toolName(id) {
+  const t = toolsData[id];
+  if (t) return t.name;
+  for (const c of (catalog ? catalog.categories : [])) {
+    const f = c.tools.find(x => x.id === id);
+    if (f) return f.name;
+  }
+  return id;
+}
+
+async function loadProfiles() {
+  try {
+    const d = await api('/api/profiles');
+    profiles = d.profiles;
+    renderProfiles();
+  } catch (e) { /* backend not ready / offline */ }
+}
+
+function toggleProfilesPanel() {
+  document.getElementById('profiles-panel').classList.toggle('visible');
+  renderProfiles();
+}
+
+function renderProfiles() {
+  const list = document.getElementById('profile-list');
+  const panel = document.getElementById('profiles-panel');
+  if (!list || !panel.classList.contains('visible')) return;
+  document.getElementById('profiles-targets').textContent = targetIds().map(deviceLabel).join(', ');
+  if (!profiles.length) {
+    list.innerHTML = '<div class="vnc-note">No profiles yet. Create one to reuse a toolset across devices.</div>';
+    return;
+  }
+  list.innerHTML = profiles.map(p => {
+    const names = p.tool_ids.map(id => escHtml(toolName(id))).join(' → ');
+    const warn = p.unknown_tool_ids && p.unknown_tool_ids.length
+      ? `<div class="prof-warn">Not in catalog (edit to fix; cannot be applied): ${p.unknown_tool_ids.map(escHtml).join(', ')}</div>` : '';
+    return `<div class="profile-row" id="prof-${escHtml(p.id)}">
+      <div class="prof-main">
+        <div class="prof-name">${escHtml(p.name)} <span class="badge dtype">${p.tool_ids.length} tool${p.tool_ids.length === 1 ? '' : 's'}</span></div>
+        ${p.description ? `<div class="prof-desc">${escHtml(p.description)}</div>` : ''}
+        <div class="prof-tools">${names}</div>
+        ${warn}
+      </div>
+      <div class="dev-actions">
+        <button class="btn primary btn-sm" onclick="applyProfile('${p.id}')" ${warn ? 'disabled' : ''}
+          title="Install this profile's tools on the selected device(s)">⬇ Apply to selected device(s)</button>
+        <button class="btn btn-sm" onclick="showProfileForm('${p.id}')">Edit</button>
+        <button class="btn btn-sm danger" onclick="removeProfile('${p.id}')">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function showProfileForm(id) {
+  editingProfileId = id || null;
+  const p = profiles.find(x => x.id === id) || {};
+  document.getElementById('pf-name').value = p.name || '';
+  document.getElementById('pf-desc').value = p.description || '';
+  document.getElementById('pf-tool-search').value = '';
+  pickedTools = [...(p.tool_ids || [])];
+  document.getElementById('pf-save').textContent = id ? 'Save changes' : 'Create profile';
+  document.getElementById('profile-form-status').textContent = '';
+  document.getElementById('profiles-panel').classList.add('visible');
+  document.getElementById('profile-form').classList.add('visible');
+  renderProfiles();
+  renderProfileTools();
+  document.getElementById('pf-name').focus();
+}
+
+function hideProfileForm() {
+  editingProfileId = null;
+  document.getElementById('profile-form').classList.remove('visible');
+}
+
+function renderProfileTools() {
+  const box = document.getElementById('pf-tools');
+  if (!catalog) { box.textContent = 'Catalog not loaded.'; return; }
+  const q = document.getElementById('pf-tool-search').value.trim().toLowerCase();
+  box.innerHTML = catalog.categories.map(c => {
+    const tools = c.tools.filter(t => !q || (t.name + ' ' + t.id + ' ' + (t.tags || []).join(' ')).toLowerCase().includes(q));
+    if (!tools.length) return '';
+    return `<div class="pf-cat">${escHtml(c.name)}</div>` + tools.map(t =>
+      `<label><input type="checkbox" value="${escHtml(t.id)}" ${pickedTools.includes(t.id) ? 'checked' : ''}
+         onchange="toggleProfileTool(this.value, this.checked)"> ${escHtml(t.name)}${t.builtin ? ' <span class="badge builtin">built-in</span>' : ''}</label>`).join('');
+  }).join('') || '<div class="vnc-note">No tools match.</div>';
+  updateProfilePicked();
+}
+
+function updateProfilePicked() {
+  document.getElementById('pf-count').textContent = `(${pickedTools.length} picked)`;
+  document.getElementById('pf-order').textContent = pickedTools.length
+    ? 'Install order: ' + pickedTools.map(toolName).join(' → ') : 'No tools picked yet.';
+}
+
+function toggleProfileTool(id, checked) {
+  if (checked) { if (!pickedTools.includes(id)) pickedTools.push(id); }
+  else pickedTools = pickedTools.filter(x => x !== id);
+  updateProfilePicked();
+}
+
+function profileUseSelection() {
+  pickedTools = [...selectedIds];
+  renderProfileTools();
+}
+
+function profilePickedClear() {
+  pickedTools = [];
+  renderProfileTools();
+}
+
+async function saveProfile() {
+  const status = document.getElementById('profile-form-status');
+  const body = {
+    name: document.getElementById('pf-name').value.trim(),
+    description: document.getElementById('pf-desc').value.trim(),
+    tool_ids: [...pickedTools],
+  };
+  status.className = '';
+  status.textContent = 'Saving…';
+  try {
+    if (editingProfileId) await api('/api/profiles/' + encodeURIComponent(editingProfileId), jsonOpts('PUT', body));
+    else await api('/api/profiles', jsonOpts('POST', body));
+    hideProfileForm();
+    await loadProfiles();
+    showToast('Profile saved', 'success');
+  } catch (e) {
+    status.className = 'err';
+    status.textContent = '✗ ' + e.message;
+  }
+}
+
+async function removeProfile(id) {
+  const p = profiles.find(x => x.id === id);
+  if (!confirm(`Delete profile "${p ? p.name : id}"?\n\nThis only removes the saved set; nothing is changed on any Pi.`)) return;
+  try {
+    await api('/api/profiles/' + encodeURIComponent(id), {method: 'DELETE'});
+    if (editingProfileId === id) hideProfileForm();
+    await loadProfiles();
+  } catch (e) {
+    showToast('Delete failed: ' + e.message, 'error');
+  }
+}
+
+async function applyProfile(id) {
+  const p = profiles.find(x => x.id === id);
+  if (!p) return;
+  const ids = targetIds();
+  const names = ids.map(deviceLabel).join('\n  • ');
+  const tools = p.tool_ids.map(toolName).join('\n  • ');
+  if (!confirm(`Apply profile "${p.name}" to ${ids.length} device${ids.length > 1 ? 's' : ''}?\n\nTools (installed in order):\n  • ${tools}\n\nDevices${ids.length > 1 ? ' (run in parallel)' : ''}:\n  • ${names}`)) return;
+  openModal(`Applying profile "${p.name}" on ${targetSummary()}…`);
+  setModalStatus('Starting…', true);
+  try {
+    const {job_id, devices: jobDevices, tool_ids} = await api(
+      '/api/profiles/' + encodeURIComponent(id) + '/apply', jsonOpts('POST', {device_ids: ids}));
+    activeJobId = job_id;
+    streamJob(job_id, tool_ids || p.tool_ids, 'install', jobDevices);
+  } catch (e) {
+    appendTerminal('[ERROR] ' + e.message + '\n', 'error');
+    setModalStatus('Error: ' + e.message, false);
   }
 }
 
@@ -1006,6 +1790,386 @@ async function vncStop() {
   }
 }
 
+// ── ESP32 flashing (esptool) — UNTESTED ON HARDWARE ──────────────────────────
+let esp32Ready = false;
+async function esp32Init() {
+  if (!esp32Ready) {
+    try {
+      const st = await (await fetch('/api/esp32/status')).json();
+      document.getElementById('esp32-chip').innerHTML = st.chips.map(c => `<option>${escHtml(c)}</option>`).join('');
+      document.getElementById('esp32-baud').innerHTML = st.bauds.map(b =>
+        `<option ${b === st.default_baud ? 'selected' : ''}>${b}</option>`).join('');
+      document.getElementById('esp32-addr').value = st.default_address;
+      document.getElementById('esp32-tool-status').innerHTML = st.esptool_available
+        ? '<span style="color:var(--green)">esptool found.</span>'
+        : '<span style="color:var(--amber)">esptool not found — install with <code>pip install esptool</code>.</span>';
+      esp32Ready = true;
+    } catch (e) { showToast('ESP32 status failed: ' + e.message, 'error'); }
+  }
+  esp32LoadPorts();
+  esp32LoadDevices();
+  esp32TcStatus();
+  fleetInit();
+}
+async function esp32LoadPorts() {
+  const sel = document.getElementById('esp32-port');
+  try {
+    const {ports} = await (await fetch('/api/esp32/ports')).json();
+    sel.innerHTML = ports.length
+      ? ports.map(p => `<option value="${escHtml(p.device)}">${escHtml(p.device)}${p.description ? ' — ' + escHtml(p.description) : ''}</option>`).join('')
+      : '<option value="">No serial ports found</option>';
+  } catch (e) { sel.innerHTML = '<option value="">Port scan failed</option>'; }
+}
+// ── ESP32 detect / device info — UNTESTED ON HARDWARE ────────────────────────
+let esp32SelectedPort = '';
+async function esp32LoadDevices() {
+  const box = document.getElementById('esp32-devices');
+  box.textContent = 'Scanning…';
+  try {
+    const d = await (await fetch('/api/esp32/devices')).json();
+    if (!d.devices.length) { box.textContent = 'No serial devices found. Plug the board in and scan again.'; return; }
+    const rows = d.devices.map(p => `<tr>
+      <td><input type="radio" name="esp32-dev" value="${escHtml(p.device)}" ${p.device === esp32SelectedPort ? 'checked' : ''}
+        onchange="esp32SelectedPort=this.value;document.getElementById('esp32-port').value=this.value"></td>
+      <td><code>${escHtml(p.device)}</code></td><td>${escHtml(p.vid_pid || '—')}</td>
+      <td>${escHtml([p.manufacturer, p.product || p.description].filter(Boolean).join(' · ') || '—')}</td>
+      <td>${p.likely_esp32 ? '✓ ' + escHtml(p.bridge) : ''}</td></tr>`).join('');
+    box.innerHTML = `<table style="width:100%;border-collapse:collapse"><tr style="color:var(--muted);text-align:left">
+      <th></th><th>Port</th><th>VID:PID</th><th>Manufacturer / product</th><th>Likely ESP32</th></tr>${rows}</table>`
+      + (d.pyserial ? '' : '<div style="color:var(--muted)">pyserial not installed: USB details unavailable (pip install pyserial).</div>');
+  } catch (e) { box.textContent = 'Device scan failed: ' + e.message; }
+}
+async function esp32ReadInfo() {
+  const port = esp32SelectedPort || document.getElementById('esp32-port').value;
+  const status = document.getElementById('esp32-info-status');
+  const btn = document.getElementById('esp32-info-btn');
+  if (!port) { showToast('Select a device first', 'error'); return; }
+  const fd = new FormData();
+  fd.append('port', port);
+  fd.append('op', document.getElementById('esp32-info-op').value);
+  fd.append('chip', document.getElementById('esp32-chip').value || 'auto');
+  btn.disabled = true; status.textContent = 'Running esptool on ' + port + '…';
+  try {
+    const r = await fetch('/api/esp32/chip-info', {method: 'POST', body: fd});
+    const d = await r.json();
+    if (!r.ok) { status.textContent = d.detail || ('HTTP ' + r.status); return; }
+    const i = d.info, f = (k, v) => v ? `<tr><td style="color:var(--muted);padding-right:12px">${k}</td><td><code>${escHtml(v)}</code></td></tr>` : '';
+    document.getElementById('esp32-info').innerHTML = `<table>${f('Chip', i.chip || i.chip_family)}${f('Features', i.features)}
+      ${f('Crystal', i.crystal)}${f('MAC', i.mac)}${f('Chip ID', i.chip_id)}${f('Flash size', i.flash_size)}
+      ${f('Flash mfr / device', i.flash_manufacturer && (i.flash_manufacturer + ' / ' + (i.flash_device || '?')))}</table>`;
+    document.getElementById('esp32-info-raw').textContent = d.output;
+    status.textContent = d.ok ? 'Done (exit 0)' : 'esptool exited ' + d.exit_code + ' — see raw output';
+  } catch (e) { status.textContent = 'Failed: ' + e.message; }
+  finally { btn.disabled = false; }
+}
+async function esp32Flash() {
+  const port = document.getElementById('esp32-port').value;
+  const fw = document.getElementById('esp32-fw').files[0];
+  const status = document.getElementById('esp32-status');
+  const out = document.getElementById('esp32-output');
+  const btn = document.getElementById('esp32-flash-btn');
+  if (!port) { showToast('Pick a serial port', 'error'); return; }
+  if (!fw) { showToast('Pick a .bin firmware file', 'error'); return; }
+  const fd = new FormData();
+  fd.append('port', port);
+  fd.append('chip', document.getElementById('esp32-chip').value);
+  fd.append('baud', document.getElementById('esp32-baud').value);
+  fd.append('address', document.getElementById('esp32-addr').value.trim());
+  fd.append('firmware', fw);
+  out.style.display = 'block'; out.textContent = '';
+  btn.disabled = true; status.textContent = 'Flashing…';
+  try {
+    const r = await fetch('/api/esp32/flash', {method: 'POST', body: fd});
+    if (!r.ok) {
+      let msg = r.statusText;
+      try { const j = await r.json(); msg = typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail); } catch {}
+      throw new Error(msg);
+    }
+    const reader = r.body.getReader(); const dec = new TextDecoder();
+    for (;;) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      out.textContent += dec.decode(value, {stream: true});
+      out.scrollTop = out.scrollHeight;
+    }
+    const m = out.textContent.match(/\[EXIT (-?\d+)\]/);
+    const ok = m && m[1] === '0';
+    status.textContent = ok ? 'esptool reported success.' : 'esptool failed — see output.';
+    showToast(status.textContent, ok ? 'success' : 'error');
+  } catch (e) {
+    status.textContent = 'Error: ' + e.message;
+    showToast(e.message, 'error');
+  } finally { btn.disabled = false; }
+}
+
+
+// ── ESP32 USB serial provisioning (contract v1) — UNTESTED ON HARDWARE ──────
+let provSchema = null;
+function provPort() { return document.getElementById('esp32-port').value; }
+function provOut(obj) {
+  const o = document.getElementById('prov-output'); o.style.display = 'block';
+  o.textContent = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
+}
+async function provCall(path, body, label) {
+  const st = document.getElementById('prov-status');
+  if (!provPort()) { showToast('Pick a serial port first', 'error'); return null; }
+  st.textContent = label + '… (up to ~15 s)';
+  document.querySelectorAll('#esp32-prov button').forEach(b => b.disabled = true);
+  try {
+    const r = await api('/api/esp32/provision/' + path, jsonOpts('POST',
+      {port: provPort(), reset: document.getElementById('prov-reset').checked, ...body}));
+    const rep = r.reply;
+    if (rep && rep.ok === false) { st.textContent = '✗ ' + (rep.err_text || rep.err); st.style.color = 'var(--red,#e55)'; }
+    else { st.textContent = '✓ ' + label + ' ok' + (r.note ? ' — ' + r.note : ''); st.style.color = 'var(--green)'; }
+    provOut(r.reply || r.hello);
+    return r;
+  } catch (e) { st.textContent = '✗ ' + e.message; st.style.color = 'var(--red,#e55)'; provOut(e.message); return null; }
+  finally {
+    document.getElementById('prov-hello-btn').disabled = false;
+    document.querySelectorAll('#esp32-prov .prov-need').forEach(b => b.disabled = !provSchema);
+  }
+}
+async function provHello() {
+  const r = await provCall('hello', {}, 'Detect');
+  if (!r) return;
+  const h = r.hello || {};
+  provSchema = r.schema;
+  document.getElementById('prov-info').innerHTML = `Project <b>${escHtml(h.project || '?')}</b> · fw <code>${escHtml(h.fw || '?')}</code> · chip <code>${escHtml(h.chip || '?')}</code>`
+    + (h.env ? ` · env <code>${escHtml(h.env)}</code>` : '')
+    + (provSchema ? ` · ${provSchema.partial ? 'partial updates allowed (blank = unchanged; one bad key rejects all)' : 'atomic: every field is required'}`
+                  : ` · <span style="color:var(--amber)">${escHtml(r.schema_error || 'unsupported project')}</span>`);
+  provBuildForm();
+  document.querySelectorAll('#esp32-prov .prov-need').forEach(b => b.disabled = !provSchema);
+}
+function provBuildForm() {
+  const f = document.getElementById('prov-form');
+  if (!provSchema) { f.innerHTML = ''; return; }
+  f.innerHTML = provSchema.fields.map(x => {
+    const lim = x.type === 'int' ? `min="${x.min}" max="${x.max}"` : (x.max ? `maxlength="${x.max}"` : '');
+    const ph = x.secret ? '(secret, not shown)' : (x.default !== undefined ? 'default ' + x.default : (x.fmt === 'mac' ? 'AA:BB:CC:DD:EE:FF' : ''));
+    const hint = x.type === 'int' ? `${x.min}-${x.max}` : (x.min !== undefined || x.max ? `${x.min || 0}-${x.max} chars` : (x.fmt || ''));
+    return `<div class="form-field"><label>${escHtml(x.label)} <span style="color:var(--muted)">${escHtml(hint)}</span></label>
+      <input data-key="${escHtml(x.name)}" data-type="${x.type}" type="${x.secret ? 'password' : (x.type === 'int' ? 'number' : 'text')}"
+        ${lim} placeholder="${escHtml(ph)}" autocomplete="${x.secret ? 'new-password' : 'off'}" style="background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 6px"></div>`;
+  }).join('');
+}
+async function provGet() {
+  const r = await provCall('get', {}, 'Read config');
+  const cfg = r && r.reply && r.reply.cfg;
+  if (!cfg || !provSchema) return;
+  document.querySelectorAll('#prov-form input').forEach(i => {
+    const f = provSchema.fields.find(x => x.name === i.dataset.key);
+    if (f && !f.secret && cfg[i.dataset.key] !== undefined) i.value = cfg[i.dataset.key];  // never prefill secrets
+  });
+}
+async function provApply() {
+  if (!provSchema) return;
+  const cfg = {};
+  document.querySelectorAll('#prov-form input').forEach(i => {
+    if (i.value === '' && provSchema.partial) return;
+    cfg[i.dataset.key] = i.dataset.type === 'int' && i.value !== '' ? Number(i.value) : i.value;
+  });
+  if (!Object.keys(cfg).length) { showToast('Nothing to apply', 'error'); return; }
+  const r = await provCall('apply', {cfg}, 'Apply');
+  if (r) document.querySelectorAll('#prov-form input[type=password]').forEach(i => i.value = '');
+}
+async function provSimple(cmd) {
+  const body = {};
+  if (cmd === 'factory_reset') {
+    if (!confirm('Factory reset this board? All provisioned settings will be erased and it will reboot.')) return;
+    body.confirm = true;
+  }
+  await provCall(cmd, body, cmd === 'reboot' ? 'Reboot' : 'Factory reset');
+}
+// ── ESP32 fleet firmware profiles (feature 4) — UNTESTED ON HARDWARE ─────────
+let fleetProfiles = [];
+async function fleetInit() {
+  if (fleetProfiles.length) return;
+  try {
+    fleetProfiles = (await (await fetch('/api/esp32/fleet/profiles')).json()).profiles;
+    document.getElementById('fleet-profile').innerHTML = fleetProfiles.map(p =>
+      `<option value="${escHtml(p.id)}">${escHtml(p.name)}</option>`).join('');
+    fleetFillEnvs();
+  } catch (e) { document.getElementById('fleet-env-info').textContent = 'Could not load profiles: ' + e.message; }
+}
+function fleetCur() {
+  const p = fleetProfiles.find(x => x.id === document.getElementById('fleet-profile').value);
+  return [p, p && p.envs.find(e => e.id === document.getElementById('fleet-env').value)];
+}
+function fleetFillEnvs() {
+  const [p] = fleetCur(); if (!p) return;
+  document.getElementById('fleet-env').innerHTML = p.envs.map(e =>
+    `<option value="${escHtml(e.id)}">${escHtml(e.id)} (${escHtml(e.chip)})</option>`).join('');
+  fleetShowEnv();
+}
+function fleetShowEnv() {
+  const [p, e] = fleetCur(); if (!e) return;
+  const rows = e.images.map(i => `<tr><td><code>${escHtml(i.address)}</code></td><td><code>${escHtml(i.file)}</code></td>
+    <td><input type="file" accept=".bin" id="fleet-up-${escHtml(i.role)}" title="Optional upload (overrides build dir)"></td>
+    <td style="color:var(--muted)">${i.optional ? 'optional' : ''}</td></tr>`).join('');
+  document.getElementById('fleet-env-info').innerHTML = `<div>Repo <code>${escHtml(p.repo)}</code>${p.project_dir ? ' · <code>' + escHtml(p.project_dir) + '</code>' : ''}
+    · chip <b>${escHtml(e.chip)}</b> · baud ${escHtml(String(e.baud))}
+    · flash args: <code>${escHtml(e.flash_args.join(' ') || 'esptool defaults / detect')}</code>
+    ${e.flash_args_confidence ? ' (' + escHtml(e.flash_args_confidence) + ')' : ''}</div>
+    <table style="margin-top:4px">${rows}</table>
+    <div style="color:var(--muted)">${escHtml(p.notes)} ${escHtml(p.post_flash)}</div>`;
+  const bd = document.getElementById('fleet-build-dir');
+  bd.placeholder = '/path/to/' + p.repo.split('/')[1] + '/' + (p.project_dir ? p.project_dir + '/' : '') + e.build_dir_hint;
+}
+async function fleetFlash() {
+  const [p, e] = fleetCur();
+  const port = document.getElementById('esp32-port').value;
+  const out = document.getElementById('fleet-output'), status = document.getElementById('fleet-status');
+  const btn = document.getElementById('fleet-flash-btn');
+  if (!p || !e) { showToast('Pick a profile', 'error'); return; }
+  if (!port) { showToast('Pick a serial port', 'error'); return; }
+  const fd = new FormData();
+  fd.append('profile', p.id); fd.append('env', e.id); fd.append('port', port);
+  fd.append('baud', document.getElementById('esp32-baud').value || String(e.baud));
+  fd.append('build_dir', document.getElementById('fleet-build-dir').value.trim());
+  for (const i of e.images) { const f = document.getElementById('fleet-up-' + i.role).files[0]; if (f) fd.append(i.role, f); }
+  out.style.display = 'block'; out.textContent = ''; btn.disabled = true; status.textContent = 'Flashing…';
+  try {
+    const r = await fetch('/api/esp32/fleet/flash', {method: 'POST', body: fd});
+    if (!r.ok) {
+      let msg = r.statusText;
+      try { const j = await r.json(); msg = typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail); } catch {}
+      throw new Error(msg);
+    }
+    const reader = r.body.getReader(); const dec = new TextDecoder();
+    for (;;) { const {done, value} = await reader.read(); if (done) break;
+      out.textContent += dec.decode(value, {stream: true}); out.scrollTop = out.scrollHeight; }
+    const m = out.textContent.match(/\[EXIT (-?\d+)\]/); const ok = m && m[1] === '0';
+    status.textContent = ok ? 'esptool reported success. Open a serial monitor for logs.' : 'esptool failed — see output.';
+    showToast(status.textContent, ok ? 'success' : 'error');
+  } catch (err) { status.textContent = 'Error: ' + err.message; showToast(err.message, 'error'); }
+  finally { btn.disabled = false; }
+}
+// ── ESP32 dev toolchain (ESP-IDF / Arduino-CLI) — UNTESTED ON HARDWARE ───────
+async function esp32TcStatus() {
+  try {
+    const st = await (await fetch('/api/esp32/toolchain/status')).json();
+    const sel = document.getElementById('tc-idf-target');
+    if (!sel.options.length) sel.innerHTML = st['esp-idf'].targets.map(t =>
+      `<option${t === 'esp32' ? ' selected' : ''}>${escHtml(t)}</option>`).join('');
+    const show = (key, dot, info, extra) => {
+      const s = st[key];
+      document.getElementById(dot).className = 'tc-dot ' + (s.installed ? 'ok' : 'no');
+      let t = s.installed ? 'Installed' + (s.path ? ' (' + s.path + ')' : '') : 'Not installed';
+      if (extra) t += extra(s);
+      if (!s.supported) t += ' — not supported on this OS';
+      else if (s.missing_prereqs.length) t += ' — missing: ' + s.missing_prereqs.join(', ');
+      document.getElementById(info).textContent = t;
+    };
+    show('esp-idf', 'tc-dot-idf', 'tc-info-idf');
+    show('arduino-cli', 'tc-dot-ard', 'tc-info-ard', s => s.installed ? (s.esp32_core_installed ? ', esp32 core ✓' : ', no esp32 core') : '');
+  } catch (e) { showToast('Toolchain status failed: ' + e.message, 'error'); }
+}
+async function esp32TcInstall(item) {
+  const out = document.getElementById('esp32-tc-output');
+  const btns = document.querySelectorAll('.tc-btn');
+  const body = {item};
+  if (item === 'esp-idf') {
+    if (!confirm('ESP-IDF is 1–2 GB and can take an hour or more on a Pi Zero. Continue?')) return;
+    body.version = document.getElementById('tc-idf-version').value.trim();
+    body.targets = [document.getElementById('tc-idf-target').value];
+  } else body.with_esp32_core = document.getElementById('tc-ard-core').checked;
+  out.style.display = 'block'; out.textContent = '';
+  btns.forEach(b => b.disabled = true);
+  try {
+    const r = await fetch('/api/esp32/toolchain/install', {method: 'POST',
+      headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    if (!r.ok) {
+      let msg = r.statusText;
+      try { const j = await r.json(); msg = typeof j.detail === 'string' ? j.detail : (j.detail.message || JSON.stringify(j.detail)); } catch {}
+      throw new Error(msg);
+    }
+    const reader = r.body.getReader(); const dec = new TextDecoder();
+    for (;;) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      out.textContent += dec.decode(value, {stream: true});
+      out.scrollTop = out.scrollHeight;
+    }
+    const m = out.textContent.match(/\[EXIT (-?\d+)\]/);
+    const ok = m && m[1] === '0';
+    showToast(item + (ok ? ' installed.' : ' install failed — see output.'), ok ? 'success' : 'error');
+  } catch (e) {
+    out.textContent += 'Error: ' + e.message + '\n';
+    showToast(e.message, 'error');
+  } finally { btns.forEach(b => b.disabled = false); esp32TcStatus(); }
+}
+
+// ── Help / Manual view (renders docs/MANUAL.md from /api/manual) ─────────────
+let helpLoaded = false;
+function mdInline(t) {
+  return escHtml(t)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+    .replace(/\*([^*]+)\*/g, '<i>$1</i>')
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, txt, url) =>
+      /^https?:/.test(url) ? `<a href="${url}" target="_blank" rel="noopener">${txt}</a>` : txt);
+}
+function renderMarkdown(md) {
+  const out = []; const lines = md.split('\n'); let i = 0;
+  while (i < lines.length) {
+    const l = lines[i];
+    if (l.startsWith('```')) {
+      const buf = []; i++;
+      while (i < lines.length && !lines[i].startsWith('```')) buf.push(lines[i++]);
+      i++; out.push('<pre><code>' + escHtml(buf.join('\n')) + '</code></pre>'); continue;
+    }
+    const h = l.match(/^(#{1,4})\s+(.*)/);
+    if (h) { out.push(`<h${h[1].length}>${mdInline(h[2])}</h${h[1].length}>`); i++; continue; }
+    if (/^---+\s*$/.test(l)) { out.push('<hr>'); i++; continue; }
+    if (l.startsWith('|')) {
+      const rows = [];
+      while (i < lines.length && lines[i].startsWith('|')) rows.push(lines[i++]);
+      const cells = r => r.replace(/^\||\|\s*$/g, '').split('|').map(c => mdInline(c.trim()));
+      let html = '<table>';
+      rows.forEach((r, n) => {
+        if (/^\|[\s:|-]+\|?\s*$/.test(r)) return;
+        const tag = n === 0 ? 'th' : 'td';
+        html += '<tr>' + cells(r).map(c => `<${tag}>${c}</${tag}>`).join('') + '</tr>';
+      });
+      out.push(html + '</table>'); continue;
+    }
+    if (l.startsWith('>')) {
+      const buf = [];
+      while (i < lines.length && lines[i].startsWith('>')) buf.push(lines[i++].replace(/^>\s?/, ''));
+      out.push('<blockquote>' + mdInline(buf.join(' ')) + '</blockquote>'); continue;
+    }
+    if (/^\s*(-|\d+\.)\s+/.test(l)) {
+      const ordered = /^\s*\d+\./.test(l); const buf = [];
+      while (i < lines.length && /^\s*(-|\d+\.)\s+/.test(lines[i]))
+        buf.push('<li>' + mdInline(lines[i++].replace(/^\s*(-|\d+\.)\s+/, '')) + '</li>');
+      out.push((ordered ? '<ol>' : '<ul>') + buf.join('') + (ordered ? '</ol>' : '</ul>')); continue;
+    }
+    if (!l.trim()) { i++; continue; }
+    const buf = [];
+    while (i < lines.length && lines[i].trim() && !/^(#|```|\||>|\s*(-|\d+\.)\s)/.test(lines[i])) buf.push(lines[i++]);
+    if (!buf.length) { out.push('<p>' + mdInline(l) + '</p>'); i++; continue; }
+    out.push('<p>' + mdInline(buf.join(' ')) + '</p>');
+  }
+  return out.join('\n');
+}
+async function toggleHelp(force) {
+  const v = document.getElementById('help-view');
+  const show = force === undefined ? !v.classList.contains('visible') : force;
+  v.classList.toggle('visible', show);
+  if (show && !helpLoaded) {
+    const body = document.getElementById('help-body');
+    try {
+      const r = await fetch('/api/manual');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      body.innerHTML = renderMarkdown(await r.text());
+      helpLoaded = true;
+    } catch (e) {
+      body.textContent = 'Could not load the manual (' + e.message + '). See docs/MANUAL.md in the repository.';
+    }
+  }
+}
+
 // Close modal on overlay click
 document.getElementById('modal-overlay').addEventListener('click', e => {
   if (e.target === e.currentTarget) closeModal();
@@ -1013,7 +2177,7 @@ document.getElementById('modal-overlay').addEventListener('click', e => {
 
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeModal(); return; }
+  if (e.key === 'Escape') { closeModal(); toggleHelp(false); return; }
   const tag = document.activeElement?.tagName;
   if (e.key === '/' && tag !== 'INPUT' && tag !== 'TEXTAREA') {
     e.preventDefault();
