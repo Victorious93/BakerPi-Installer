@@ -299,6 +299,11 @@ button { cursor: pointer; font: inherit; }
   border-radius:var(--radius); color:var(--text); padding:5px 8px; font-size:12px; font-family:var(--mono); }
 #esp32-output { font-family:var(--mono); font-size:12px; background:var(--bg); border:1px solid var(--border);
   border-radius:4px; padding:8px 12px; margin-top:10px; max-height:320px; overflow:auto; white-space:pre-wrap; display:none; }
+#esp32-tc-output { font-family:var(--mono); font-size:12px; background:var(--bg); border:1px solid var(--border);
+  border-radius:4px; padding:8px 12px; margin-top:10px; max-height:320px; overflow:auto; white-space:pre-wrap; display:none; }
+.tc-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:6px 0; font-size:12px; }
+.tc-dot { width:9px; height:9px; border-radius:50%; background:var(--muted); display:inline-block; }
+.tc-dot.ok { background:#00f0ff; box-shadow:0 0 6px #00f0ff; } .tc-dot.no { background:#ff00e5; box-shadow:0 0 6px #ff00e5; }
 .untested-badge { font-size:10px; font-weight:600; color:#ff00e5; border:1px solid #ff00e5;
   border-radius:99px; padding:1px 8px; text-shadow:0 0 4px #ff00e5; }
 
@@ -522,6 +527,21 @@ button { cursor: pointer; font: inherit; }
           <span id="esp32-status" style="font-size:12px;color:var(--muted)"></span>
         </div>
         <pre id="esp32-output"></pre>
+        <!-- ESP32 Dev Toolchain (ESP-IDF / Arduino-CLI; untested on hardware) -->
+        <h4 style="margin-top:18px"><span class="neon-ring" aria-hidden="true"></span> Dev Toolchain
+          <span class="untested-badge" title="Not yet verified end-to-end on a real Pi Zero">UNTESTED ON HARDWARE</span></h4>
+        <div style="font-size:12px;color:var(--muted)">Installs onto <b>the computer running this app</b> (Linux/macOS).
+          ESP-IDF is large (1–2 GB) and <b>very slow on a Pi Zero</b> (can take an hour or more, and may fail if no armv6 toolchain is available).</div>
+        <div class="tc-row"><span class="tc-dot" id="tc-dot-idf"></span><b>ESP-IDF</b>
+          <input type="text" id="tc-idf-version" value="v5.3.1" maxlength="10" size="8" title="Release tag">
+          <select id="tc-idf-target"></select>
+          <button class="btn btn-sm tc-btn" onclick="esp32TcInstall('esp-idf')">Install ESP-IDF</button>
+          <span id="tc-info-idf" style="color:var(--muted)"></span></div>
+        <div class="tc-row"><span class="tc-dot" id="tc-dot-ard"></span><b>Arduino-CLI</b>
+          <label><input type="checkbox" id="tc-ard-core" checked> + esp32 core</label>
+          <button class="btn btn-sm tc-btn" onclick="esp32TcInstall('arduino-cli')">Install Arduino-CLI</button>
+          <span id="tc-info-ard" style="color:var(--muted)"></span></div>
+        <pre id="esp32-tc-output"></pre>
         <div class="vnc-note" style="margin-top:10px">
           Writing the wrong image or address can leave the board unbootable until re-flashed.
           This feature has not been verified on a real ESP32 yet.
@@ -1739,6 +1759,7 @@ async function esp32Init() {
   }
   esp32LoadPorts();
   esp32LoadDevices();
+  esp32TcStatus();
 }
 async function esp32LoadPorts() {
   const sel = document.getElementById('esp32-port');
@@ -1829,6 +1850,61 @@ async function esp32Flash() {
     status.textContent = 'Error: ' + e.message;
     showToast(e.message, 'error');
   } finally { btn.disabled = false; }
+}
+
+// ── ESP32 dev toolchain (ESP-IDF / Arduino-CLI) — UNTESTED ON HARDWARE ───────
+async function esp32TcStatus() {
+  try {
+    const st = await (await fetch('/api/esp32/toolchain/status')).json();
+    const sel = document.getElementById('tc-idf-target');
+    if (!sel.options.length) sel.innerHTML = st['esp-idf'].targets.map(t =>
+      `<option${t === 'esp32' ? ' selected' : ''}>${escHtml(t)}</option>`).join('');
+    const show = (key, dot, info, extra) => {
+      const s = st[key];
+      document.getElementById(dot).className = 'tc-dot ' + (s.installed ? 'ok' : 'no');
+      let t = s.installed ? 'Installed' + (s.path ? ' (' + s.path + ')' : '') : 'Not installed';
+      if (extra) t += extra(s);
+      if (!s.supported) t += ' — not supported on this OS';
+      else if (s.missing_prereqs.length) t += ' — missing: ' + s.missing_prereqs.join(', ');
+      document.getElementById(info).textContent = t;
+    };
+    show('esp-idf', 'tc-dot-idf', 'tc-info-idf');
+    show('arduino-cli', 'tc-dot-ard', 'tc-info-ard', s => s.installed ? (s.esp32_core_installed ? ', esp32 core ✓' : ', no esp32 core') : '');
+  } catch (e) { showToast('Toolchain status failed: ' + e.message, 'error'); }
+}
+async function esp32TcInstall(item) {
+  const out = document.getElementById('esp32-tc-output');
+  const btns = document.querySelectorAll('.tc-btn');
+  const body = {item};
+  if (item === 'esp-idf') {
+    if (!confirm('ESP-IDF is 1–2 GB and can take an hour or more on a Pi Zero. Continue?')) return;
+    body.version = document.getElementById('tc-idf-version').value.trim();
+    body.targets = [document.getElementById('tc-idf-target').value];
+  } else body.with_esp32_core = document.getElementById('tc-ard-core').checked;
+  out.style.display = 'block'; out.textContent = '';
+  btns.forEach(b => b.disabled = true);
+  try {
+    const r = await fetch('/api/esp32/toolchain/install', {method: 'POST',
+      headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    if (!r.ok) {
+      let msg = r.statusText;
+      try { const j = await r.json(); msg = typeof j.detail === 'string' ? j.detail : (j.detail.message || JSON.stringify(j.detail)); } catch {}
+      throw new Error(msg);
+    }
+    const reader = r.body.getReader(); const dec = new TextDecoder();
+    for (;;) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      out.textContent += dec.decode(value, {stream: true});
+      out.scrollTop = out.scrollHeight;
+    }
+    const m = out.textContent.match(/\[EXIT (-?\d+)\]/);
+    const ok = m && m[1] === '0';
+    showToast(item + (ok ? ' installed.' : ' install failed — see output.'), ok ? 'success' : 'error');
+  } catch (e) {
+    out.textContent += 'Error: ' + e.message + '\n';
+    showToast(e.message, 'error');
+  } finally { btns.forEach(b => b.disabled = false); esp32TcStatus(); }
 }
 
 // ── Help / Manual view (renders docs/MANUAL.md from /api/manual) ─────────────

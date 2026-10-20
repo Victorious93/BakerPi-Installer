@@ -13,6 +13,7 @@ added_files = [
     ("device_registry.py", "."),
     ("profile_registry.py", "."),
     ("esp32_flasher.py", "."),
+    ("esp32_toolchain.py", "."),
     ("static",          "static"),
     ("tools",           "tools"),
     ("install_scripts", "install_scripts"),
@@ -27,6 +28,7 @@ a = Analysis(
     datas=added_files,
     hiddenimports=[
         "esp32_flasher",
+        "esp32_toolchain",
         "multipart",
         "uvicorn.logging",
         "uvicorn.loops",

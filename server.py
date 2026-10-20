@@ -29,6 +29,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import esp32_flasher
+import esp32_toolchain
 from device_registry import (
     DEFAULT_DEVICE_ID, Device, DeviceError, DeviceNotFound, DeviceRegistry,
     build_default_device,
@@ -989,6 +990,41 @@ def esp32_chip_info(port: str = Form(...), op: str = Form(esp32_flasher.DEFAULT_
     res = esp32_flasher.run_info(cmd)
     res.update({"port": port, "op": op, "command": cmd, "hardware_tested": False})
     return res
+
+# ── ESP32 dev toolchain (ESP-IDF / Arduino-CLI) ──────────────────────────────
+# Installs onto the machine hosting this server (never over SSH).
+# UNTESTED ON HARDWARE: verified only with mocked subprocess in tests/.
+# ESP-IDF is large and very slow on a Pi Zero.
+
+class ToolchainInstallRequest(BaseModel):
+    item: str
+    version: str = esp32_toolchain.DEFAULT_IDF_VERSION
+    targets: list[str] = list(esp32_toolchain.DEFAULT_IDF_TARGETS)
+    with_esp32_core: bool = True
+
+@app.get("/api/esp32/toolchain/status")
+def esp32_toolchain_status():
+    return esp32_toolchain.status()
+
+@app.post("/api/esp32/toolchain/install")
+def esp32_toolchain_install(req: ToolchainInstallRequest):
+    try:
+        steps, env, cleanup = esp32_toolchain.plan_install(
+            req.item, req.version, req.targets, req.with_esp32_core)
+    except esp32_toolchain.ToolchainValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except esp32_toolchain.PrereqMissing as e:
+        raise HTTPException(status_code=424, detail={
+            "message": str(e), "item": e.item, "missing": e.missing})
+    if not esp32_toolchain.acquire():
+        if cleanup:
+            try:
+                os.unlink(cleanup)
+            except OSError:
+                pass
+        raise HTTPException(status_code=409, detail="A toolchain install is already running.")
+    return StreamingResponse(esp32_toolchain.run_steps(steps, env, cleanup),
+                             media_type="text/plain")
 
 # ── Startup ───────────────────────────────────────────────────────────────────
 

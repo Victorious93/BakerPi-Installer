@@ -226,6 +226,10 @@ Override with `--profiles-file PATH` (`server.py` and `launcher.py`) or `BAKERPI
 
 The **⚡ ESP32 Flashing** sidebar entry flashes a `.bin` to an ESP32 plugged into the computer running the app, using `esptool` (`pip install esptool`). Pick port, chip, baud and flash address, then watch esptool's output live. Not yet verified on a real ESP32. The **Detect / Device Info** area lists connected serial devices (USB VID:PID, manufacturer) and reads chip type, MAC and flash size via `esptool flash_id`/`read_mac`/`chip_id` (`GET /api/esp32/devices`, `POST /api/esp32/chip-info`), also untested on hardware. See [docs/MANUAL.md §3.16–3.17](docs/MANUAL.md).
 
+### ESP32 dev toolchain (untested on hardware)
+
+The **Dev Toolchain** area of the ESP32 panel installs **ESP-IDF** (git clone + `install.sh`) and **Arduino-CLI** (optionally with the `esp32:esp32` core) onto the computer running the app, on Linux or macOS, with live output and installed/not-installed status. ESP-IDF is 1–2 GB and very slow on a Pi Zero. Not yet verified on real hardware. See [docs/MANUAL.md §3.18](docs/MANUAL.md).
+
 ## Tool categories
 
 | Category | Example tools |
@@ -282,6 +286,7 @@ Windows installers use Inno Setup (`installer.iss`). CI builds are defined in `.
 server.py              FastAPI app (catalog, install jobs, SSH, VNC, system info, device + profile API)
 device_registry.py     Device inventory: persisted Pi targets + selection (stdlib only)
 esp32_flasher.py       ESP32 flashing helpers: esptool wrapper, input validation, port listing, USB device detection, chip-info parsing (untested on hardware)
+esp32_toolchain.py     ESP32 dev toolchain installer: ESP-IDF / Arduino-CLI (untested on hardware)
 profile_registry.py    Fleet install profiles: persisted named toolsets (stdlib only)
 tests/                 pytest suite (no hardware needed)
 docs/MANUAL.md         Full user manual (also shown in-app via ❓ Help, GET /api/manual)

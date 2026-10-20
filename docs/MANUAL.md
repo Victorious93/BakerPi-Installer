@@ -265,6 +265,29 @@ Reading chip info briefly resets the board into its bootloader. Some boards need
 
 This is ESP32 feature 2 of 4.
 
+### 3.18 ESP32 dev toolchain (ESP-IDF, Arduino-CLI)
+
+> **Untested on hardware.** Covered by automated tests with a mocked `subprocess` only. These installs change the host system and have **not** been verified end-to-end on a real Pi Zero. Treat as experimental.
+
+The **Dev Toolchain** area at the bottom of the **⚡ ESP32 Flashing** panel installs an ESP32 development toolchain onto **the computer running BakerPi Installer** (the Pi itself with `run_ondevice.sh`, or your PC). It never runs over SSH on a remote Pi.
+
+**What it installs**
+
+- **ESP-IDF**: `git clone --depth 1 --branch <version> --recursive` of `espressif/esp-idf` into `~/esp/esp-idf` (override the parent folder with `BAKERPI_ESP_DIR`), then runs its `install.sh <targets>`, which downloads compilers into `~/.espressif`. If `~/esp/esp-idf/install.sh` already exists the clone is skipped. Pick a release tag (default `v5.3.1`) and a chip target (`esp32`, `esp32s3`, …, or `all`). Afterwards, in a terminal, run `. ~/esp/esp-idf/export.sh` before using `idf.py`.
+- **Arduino-CLI**: downloads the official `install.sh` with `curl` to a temp file, runs it with `BINDIR=~/.local/bin`, and (if **+ esp32 core** is ticked) runs `arduino-cli core update-index` and `core install esp32:esp32` with Espressif's board index URL. Add `~/.local/bin` to your `PATH`.
+
+**Host requirements and permissions:** Linux or macOS (Windows is refused: use the official Espressif / Arduino installers). ESP-IDF needs `git`, `python3` and `bash`; Arduino-CLI needs `curl` and `sh`. If any is missing, the panel lists it and the install returns HTTP 424 without running anything. No root/sudo is used: everything goes into the home directory of the user running the app. It needs internet access and a lot of disk space.
+
+**Pi Zero performance caveat:** ESP-IDF plus its tools is roughly 1–2 GB. On a Pi Zero (single-core ARMv6, 512 MB RAM) cloning and installing can take an hour or more, may run out of disk or memory, and may fail outright if Espressif ships no toolchain for `armv6l`. Arduino-CLI is much smaller, but the esp32 core download is still several hundred MB. Prefer installing on a PC if you can.
+
+**Status:** green dot = installed (ESP-IDF: `~/esp/esp-idf/tools/idf.py` exists; Arduino-CLI: `arduino-cli` on `PATH` or in `~/.local/bin`, plus whether `esp32:esp32` shows in `arduino-cli core list`).
+
+**Safety:** every step runs as an argument list with `shell=False`. The upstream shell scripts are started as `bash <fixed path>` / `sh <temp file>` with no user text interpolated. The version must match `vN.N[.N]` and targets come from a fixed allowlist. Only one toolchain install runs at a time (HTTP 409 otherwise). Steps stop at the first failure.
+
+**API:** `GET /api/esp32/toolchain/status`; `POST /api/esp32/toolchain/install` with JSON `{"item": "esp-idf"|"arduino-cli", "version": "v5.3.1", "targets": ["esp32"], "with_esp32_core": true}`. It streams plain-text output that ends with `[EXIT n]`.
+
+This is ESP32 feature 3 of 4.
+
 ### Not available today
 
 These are **not** in the code: automatic device discovery, a side-by-side fleet status dashboard, drift detection or re-sync, unattended first-boot provisioning, rollback, job cancel or retry, log export, saved passwords, SSH host-key pinning, a built-in VNC viewer, SD-card flashing (Pi Imager), a native Android app, and Pi Zero 2 W support. See [ROADMAP.md](../ROADMAP.md).
