@@ -3,8 +3,8 @@
 # Opens the full tool UI inside a native OS window — no browser needed.
 #
 # Usage:
-#   ./run_app.sh                          # PC mode: SSH to 172.16.0.1
-#   ./run_app.sh --mode local             # on-device mode (run on the Pi Zero)
+#   ./run_app.sh                          # default: --mode local (on-device, run on the Pi Zero)
+#   ./run_app.sh --mode ssh               # PC mode: SSH to 172.16.0.1
 #   ./run_app.sh --host 192.168.7.1       # custom Pi IP
 #   ./run_app.sh --password raspberry     # SSH password
 #   ./run_app.sh --key-file ~/.ssh/id_rsa # SSH key auth
