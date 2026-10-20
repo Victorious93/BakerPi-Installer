@@ -770,7 +770,7 @@ async def ssh_connect(req: SSHConnectRequest):
 
 @app.get("/api/ssh/status")
 async def ssh_status(device_id: Optional[str] = None):
-    device = registry.get(device_id) if device_id else registry.default_device()
+    device = _device_or_404(device_id) if device_id else registry.default_device()
     if device.is_local:
         return {"mode": "local", "connected": True}
     return {"mode": "ssh", "connected": device_connected(device), "host": device.host}
