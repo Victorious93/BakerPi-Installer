@@ -53,3 +53,19 @@ def test_successful_connect_saves_creds(monkeypatch):
     monkeypatch.setattr(server.paramiko, "SSHClient", OkClient)
     server.connect_ssh("192.0.2.1", "pi", 22, "pw", None, "d1")
     assert server._ssh_creds["d1"] == {"password": "pw", "key_file": None}
+
+
+def test_device_edit_clears_saved_creds(api):
+    d = add(api, label="pi2", type="ssh", host="192.0.2.20", user="pi", key_file="/old/key")
+    server._ssh_creds[d["id"]] = {"password": None, "key_file": "/old/key"}
+    r = api.put(f"/api/devices/{d['id']}", json={"key_file": "/new/key"})
+    assert r.status_code == 200, r.text
+    assert d["id"] not in server._ssh_creds
+
+
+def test_device_label_edit_keeps_saved_creds(api):
+    d = add(api, label="pi2", type="ssh", host="192.0.2.20", user="pi")
+    server._ssh_creds[d["id"]] = {"password": "pw", "key_file": None}
+    r = api.put(f"/api/devices/{d['id']}", json={"label": "renamed"})
+    assert r.status_code == 200, r.text
+    assert server._ssh_creds[d["id"]] == {"password": "pw", "key_file": None}

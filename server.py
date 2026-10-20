@@ -719,6 +719,9 @@ async def update_device(device_id: str, req: DeviceIn):
     conn = lambda d: (d.type, d.host, d.user, d.port, d.key_file)
     if conn(before) != conn(dev):
         _drop_client(device_id)  # connection settings changed: reconnect explicitly
+        # forget remembered creds too, else a stale key_file/password would
+        # take priority over the edited settings on reconnect
+        _ssh_creds.pop(device_id, None)
     return _device_view(dev)
 
 @app.delete("/api/devices/{device_id}")
