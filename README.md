@@ -20,6 +20,8 @@ In short: it runs on your PC (or on the Pi itself), serves a local web UI, and i
 
 *Screenshots coming soon.*
 
+📖 **New here? Read the full how-to manual: [docs/MANUAL.md](docs/MANUAL.md)** (also available in the app via the **❓ Help** button).
+
 ### Place in the Victorious fleet
 
 BakerPi Installer is a **host-side desktop/CLI tool** in Don Victor's Victorious fleet. It is not a service running inside a Pi payload and not a mobile app. The same codebase has three entry points:
@@ -277,6 +279,7 @@ server.py              FastAPI app (catalog, install jobs, SSH, VNC, system info
 device_registry.py     Device inventory: persisted Pi targets + selection (stdlib only)
 profile_registry.py    Fleet install profiles: persisted named toolsets (stdlib only)
 tests/                 pytest suite (no hardware needed)
+docs/MANUAL.md         Full user manual (also shown in-app via ❓ Help, GET /api/manual)
 launcher.py            pywebview native shell around the same UI
 static/                Web UI (index.html), PWA manifest, logo, favicon
 tools/catalog.json     Tool definitions (81 tools, 13 categories)

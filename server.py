@@ -24,7 +24,7 @@ from typing import Optional
 import paramiko
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -42,6 +42,7 @@ BASE_DIR = Path(__file__).parent.resolve()
 CATALOG_PATH = BASE_DIR / "tools" / "catalog.json"
 SCRIPTS_DIR = BASE_DIR / "install_scripts"
 STATIC_DIR = BASE_DIR / "static"
+MANUAL_PATH = BASE_DIR / "docs" / "MANUAL.md"
 
 # ── Globals ───────────────────────────────────────────────────────────────────
 
@@ -496,6 +497,14 @@ async def root():
     if index.exists():
         return index.read_text()
     return "<h1>BakerPi Tool Installer</h1><p>static/index.html not found.</p>"
+
+@app.get("/api/manual", response_class=PlainTextResponse)
+async def get_manual():
+    """Read-only: the user manual (docs/MANUAL.md) as Markdown text."""
+    if not MANUAL_PATH.is_file():
+        raise HTTPException(status_code=404, detail="Manual not found")
+    return PlainTextResponse(MANUAL_PATH.read_text(encoding="utf-8"),
+                             media_type="text/markdown; charset=utf-8")
 
 @app.get("/api/catalog")
 async def get_catalog():

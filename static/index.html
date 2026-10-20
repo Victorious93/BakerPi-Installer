@@ -421,6 +421,25 @@ button { cursor: pointer; font: inherit; }
   :root { --sidebar-w: 0px; }
   #sidebar { display: none; }
 }
+
+/* ── Help / Manual view ── */
+#help-view { display:none; position:fixed; inset:0; z-index:900; background:var(--bg); overflow:auto; }
+#help-view.visible { display:block; }
+#help-inner { max-width:860px; margin:0 auto; padding:24px 20px 60px; }
+#help-head { display:flex; align-items:center; gap:16px; margin-bottom:16px; }
+.neon-ring { width:56px; height:56px; border-radius:50%; flex:none;
+  background:conic-gradient(#00f0ff, #ff00e5, #00f0ff);
+  -webkit-mask:radial-gradient(circle, transparent 55%, #000 57%);
+          mask:radial-gradient(circle, transparent 55%, #000 57%);
+  filter:drop-shadow(0 0 6px #00f0ff) drop-shadow(0 0 10px #ff00e5); }
+#help-body { line-height:1.55; font-size:14px; }
+#help-body h1,#help-body h2,#help-body h3 { margin:18px 0 8px; }
+#help-body pre { background:var(--surface, #161b22); padding:10px; border-radius:6px; overflow:auto; }
+#help-body code { font-family:monospace; }
+#help-body table { border-collapse:collapse; margin:8px 0; }
+#help-body td,#help-body th { border:1px solid var(--border, #30363d); padding:4px 8px; text-align:left; vertical-align:top; }
+#help-body blockquote { border-left:3px solid #ff00e5; margin:8px 0; padding:4px 12px; color:var(--muted); }
+#help-body ul { padding-left:22px; }
 </style>
 </head>
 <body>
@@ -440,6 +459,7 @@ button { cursor: pointer; font: inherit; }
     <button id="profiles-btn" class="btn btn-sm" onclick="toggleProfilesPanel()" title="Fleet install profiles: named toolsets you can apply to devices">📦 Profiles</button>
     <button id="device-chip" class="btn btn-sm" onclick="toggleDevicesPanel()" title="Manage devices / choose target">🖧 <span id="device-chip-label">Devices</span></button>
     <button id="ssh-toggle-btn" class="btn btn-sm" onclick="toggleSSHPanel()">⚙ SSH</button>
+    <button id="help-btn" class="btn btn-sm" onclick="toggleHelp()" title="User manual">❓ Help</button>
     <button id="theme-btn" onclick="toggleTheme()">☀ Light</button>
   </header>
 
@@ -618,6 +638,18 @@ button { cursor: pointer; font: inherit; }
 </div>
 
 <div id="toast-container"></div>
+
+<!-- Help / Manual view -->
+<div id="help-view" role="dialog" aria-label="User manual">
+  <div id="help-inner">
+    <div id="help-head">
+      <div class="neon-ring" aria-hidden="true"></div>
+      <h2 style="flex:1">BakerPi Manual</h2>
+      <button class="btn btn-sm" onclick="toggleHelp(false)">Close</button>
+    </div>
+    <div id="help-body">Loading…</div>
+  </div>
+</div>
 
 <!-- Modal -->
 <div id="modal-overlay" role="dialog" aria-modal="true">
@@ -1607,6 +1639,76 @@ async function vncStop() {
   }
 }
 
+// ── Help / Manual view (renders docs/MANUAL.md from /api/manual) ─────────────
+let helpLoaded = false;
+function mdInline(t) {
+  return escHtml(t)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+    .replace(/\*([^*]+)\*/g, '<i>$1</i>')
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, txt, url) =>
+      /^https?:/.test(url) ? `<a href="${url}" target="_blank" rel="noopener">${txt}</a>` : txt);
+}
+function renderMarkdown(md) {
+  const out = []; const lines = md.split('\n'); let i = 0;
+  while (i < lines.length) {
+    const l = lines[i];
+    if (l.startsWith('```')) {
+      const buf = []; i++;
+      while (i < lines.length && !lines[i].startsWith('```')) buf.push(lines[i++]);
+      i++; out.push('<pre><code>' + escHtml(buf.join('\n')) + '</code></pre>'); continue;
+    }
+    const h = l.match(/^(#{1,4})\s+(.*)/);
+    if (h) { out.push(`<h${h[1].length}>${mdInline(h[2])}</h${h[1].length}>`); i++; continue; }
+    if (/^---+\s*$/.test(l)) { out.push('<hr>'); i++; continue; }
+    if (l.startsWith('|')) {
+      const rows = [];
+      while (i < lines.length && lines[i].startsWith('|')) rows.push(lines[i++]);
+      const cells = r => r.replace(/^\||\|\s*$/g, '').split('|').map(c => mdInline(c.trim()));
+      let html = '<table>';
+      rows.forEach((r, n) => {
+        if (/^\|[\s:|-]+\|?\s*$/.test(r)) return;
+        const tag = n === 0 ? 'th' : 'td';
+        html += '<tr>' + cells(r).map(c => `<${tag}>${c}</${tag}>`).join('') + '</tr>';
+      });
+      out.push(html + '</table>'); continue;
+    }
+    if (l.startsWith('>')) {
+      const buf = [];
+      while (i < lines.length && lines[i].startsWith('>')) buf.push(lines[i++].replace(/^>\s?/, ''));
+      out.push('<blockquote>' + mdInline(buf.join(' ')) + '</blockquote>'); continue;
+    }
+    if (/^\s*(-|\d+\.)\s+/.test(l)) {
+      const ordered = /^\s*\d+\./.test(l); const buf = [];
+      while (i < lines.length && /^\s*(-|\d+\.)\s+/.test(lines[i]))
+        buf.push('<li>' + mdInline(lines[i++].replace(/^\s*(-|\d+\.)\s+/, '')) + '</li>');
+      out.push((ordered ? '<ol>' : '<ul>') + buf.join('') + (ordered ? '</ol>' : '</ul>')); continue;
+    }
+    if (!l.trim()) { i++; continue; }
+    const buf = [];
+    while (i < lines.length && lines[i].trim() && !/^(#|```|\||>|\s*(-|\d+\.)\s)/.test(lines[i])) buf.push(lines[i++]);
+    if (!buf.length) { out.push('<p>' + mdInline(l) + '</p>'); i++; continue; }
+    out.push('<p>' + mdInline(buf.join(' ')) + '</p>');
+  }
+  return out.join('\n');
+}
+async function toggleHelp(force) {
+  const v = document.getElementById('help-view');
+  const show = force === undefined ? !v.classList.contains('visible') : force;
+  v.classList.toggle('visible', show);
+  if (show && !helpLoaded) {
+    const body = document.getElementById('help-body');
+    try {
+      const r = await fetch('/api/manual');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      body.innerHTML = renderMarkdown(await r.text());
+      helpLoaded = true;
+    } catch (e) {
+      body.textContent = 'Could not load the manual (' + e.message + '). See docs/MANUAL.md in the repository.';
+    }
+  }
+}
+
 // Close modal on overlay click
 document.getElementById('modal-overlay').addEventListener('click', e => {
   if (e.target === e.currentTarget) closeModal();
@@ -1614,7 +1716,7 @@ document.getElementById('modal-overlay').addEventListener('click', e => {
 
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeModal(); return; }
+  if (e.key === 'Escape') { closeModal(); toggleHelp(false); return; }
   const tag = document.activeElement?.tagName;
   if (e.key === '/' && tag !== 'INPUT' && tag !== 'TEXTAREA') {
     e.preventDefault();
