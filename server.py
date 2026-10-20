@@ -19,18 +19,19 @@ import uuid
 import webbrowser
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import paramiko
 import uvicorn
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, StrictBool
 
 import esp32_flasher
 import esp32_toolchain
 import esp32_fleet_profiles
+import esp32_provision
 from device_registry import (
     DEFAULT_DEVICE_ID, Device, DeviceError, DeviceNotFound, DeviceRegistry,
     build_default_device,
@@ -1065,6 +1066,59 @@ async def esp32_fleet_flash(profile: str = Form(...), env: str = Form(...),
             if tmpdir:
                 _sh.rmtree(tmpdir, ignore_errors=True)
     return StreamingResponse(gen(), media_type="text/plain")
+
+# ── ESP32 USB serial provisioning (contract v1) — UNTESTED ON HARDWARE ──────
+# Host side only; firmware support is in open PRs. Secrets are never returned.
+
+class ProvisionRequest(BaseModel):
+    port: str
+    reset: StrictBool = False
+
+class ProvisionApplyRequest(ProvisionRequest):
+    cfg: Any = None  # validated in esp32_provision; typed loosely so a 422 never echoes secrets
+
+class ProvisionFactoryResetRequest(ProvisionRequest):
+    confirm: StrictBool = False
+
+def _provision_call(fn, *a, **kw):
+    try:
+        return fn(*a, **kw)
+    except esp32_flasher.FlashValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except esp32_provision.SchemaError as e:
+        raise HTTPException(status_code=422, detail="Config rejected: " + str(e))
+    except esp32_provision.ProvisionTimeout as e:
+        raise HTTPException(status_code=504, detail=str(e))
+    except esp32_provision.ProvisionError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+@app.get("/api/esp32/provision/schemas")
+def esp32_provision_schemas():
+    return {"schemas": {p: {"label": s["label"], "partial": s["partial"], "envs": s["envs"]}
+                        for p, s in esp32_provision.SCHEMAS.items()},
+            "hardware_tested": False}
+
+@app.post("/api/esp32/provision/hello")
+def esp32_provision_hello(req: ProvisionRequest):
+    return _provision_call(esp32_provision.do_hello, req.port, reset=req.reset)
+
+@app.post("/api/esp32/provision/get")
+def esp32_provision_get(req: ProvisionRequest):
+    return _provision_call(esp32_provision.do_get, req.port, reset=req.reset)
+
+@app.post("/api/esp32/provision/apply")
+def esp32_provision_apply(req: ProvisionApplyRequest):
+    return _provision_call(esp32_provision.do_apply, req.port, req.cfg, reset=req.reset)
+
+@app.post("/api/esp32/provision/reboot")
+def esp32_provision_reboot(req: ProvisionRequest):
+    return _provision_call(esp32_provision.do_simple, req.port, "reboot", reset=req.reset)
+
+@app.post("/api/esp32/provision/factory_reset")
+def esp32_provision_factory_reset(req: ProvisionFactoryResetRequest):
+    if req.confirm is not True:
+        raise HTTPException(status_code=400, detail="factory_reset requires confirm: true.")
+    return _provision_call(esp32_provision.do_simple, req.port, "factory_reset", reset=req.reset)
 
 # ── ESP32 dev toolchain (ESP-IDF / Arduino-CLI) ──────────────────────────────
 # Installs onto the machine hosting this server (never over SSH).
