@@ -30,6 +30,7 @@ from pydantic import BaseModel
 
 import esp32_flasher
 import esp32_toolchain
+import esp32_fleet_profiles
 from device_registry import (
     DEFAULT_DEVICE_ID, Device, DeviceError, DeviceNotFound, DeviceRegistry,
     build_default_device,
@@ -990,6 +991,80 @@ def esp32_chip_info(port: str = Form(...), op: str = Form(esp32_flasher.DEFAULT_
     res = esp32_flasher.run_info(cmd)
     res.update({"port": port, "op": op, "command": cmd, "hardware_tested": False})
     return res
+
+# ── ESP32 fleet firmware profiles (feature 4) — UNTESTED ON HARDWARE ────────
+# VictorModem / Pyra Claw. Neither publishes binaries; offsets are unverified.
+
+@app.get("/api/esp32/fleet/profiles")
+async def esp32_fleet_profiles_list():
+    return {"profiles": esp32_fleet_profiles.list_profiles(),
+            "optional_roles": list(esp32_fleet_profiles.OPTIONAL_ROLES),
+            "hardware_tested": False}
+
+@app.post("/api/esp32/fleet/flash")
+async def esp32_fleet_flash(profile: str = Form(...), env: str = Form(...),
+                            port: str = Form(...), baud: str = Form(""),
+                            build_dir: str = Form(""),
+                            bootloader: Optional[UploadFile] = File(None),
+                            partitions: Optional[UploadFile] = File(None),
+                            boot_app0: Optional[UploadFile] = File(None),
+                            firmware: Optional[UploadFile] = File(None)):
+    import shutil as _sh
+    import tempfile
+    fp = esp32_fleet_profiles
+    uploads = {"bootloader": bootloader, "partitions": partitions,
+               "boot_app0": boot_app0, "firmware": firmware}
+    tmpdir = None
+    try:
+        try:
+            env_cfg = fp.get_env(profile, env)
+            esp32_flasher.validate_port(port)
+            baud_i = esp32_flasher.validate_baud(baud or env_cfg["baud"])
+            extra = {}
+            for role, up in uploads.items():
+                if up is None or not up.filename:
+                    continue
+                if role not in env_cfg["images"]:
+                    raise esp32_flasher.FlashValidationError(f"{role} is not used by this env.")
+                data = await up.read(esp32_flasher.MAX_FIRMWARE_BYTES + 1)
+                esp32_flasher.validate_firmware(up.filename, len(data),
+                                                env_cfg["images"][role])
+                if tmpdir is None:
+                    tmpdir = tempfile.mkdtemp(prefix="bakerpi-fleet-")
+                path = os.path.join(tmpdir, fp.IMAGE_FILES[role])
+                with open(path, "wb") as f:
+                    f.write(data)
+                extra[role] = path
+            if build_dir.strip():
+                images = fp.collect_from_build_dir(build_dir.strip(), env_cfg, extra)
+            else:
+                images = extra
+            esptool_cmd = esp32_flasher.find_esptool()
+            if esptool_cmd is None:
+                raise HTTPException(status_code=503, detail=(
+                    "esptool is not installed on the machine running BakerPi Installer. "
+                    "Install it with: pip install esptool"))
+            cmd = fp.build_multi_flash_cmd(esptool_cmd, port, baud_i, env_cfg, images)
+        except esp32_flasher.FlashValidationError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+    except BaseException:
+        if tmpdir:
+            _sh.rmtree(tmpdir, ignore_errors=True)
+        raise
+    skipped = [fp.IMAGE_FILES[r] for r in env_cfg["images"] if r not in images]
+
+    def gen():
+        try:
+            yield "# UNTESTED ON HARDWARE: offsets from project notes, not verified.\n"
+            if skipped:
+                yield ("# Not flashing " + ", ".join(skipped) + " (not found/uploaded; "
+                       "boot_app0.bin ships with the Arduino-ESP32 framework).\n")
+            yield "$ " + " ".join(cmd) + "\n"
+            yield from esp32_flasher.stream_flash(cmd)
+        finally:
+            if tmpdir:
+                _sh.rmtree(tmpdir, ignore_errors=True)
+    return StreamingResponse(gen(), media_type="text/plain")
 
 # ── ESP32 dev toolchain (ESP-IDF / Arduino-CLI) ──────────────────────────────
 # Installs onto the machine hosting this server (never over SSH).
