@@ -146,3 +146,127 @@ def stream_flash(cmd: list[str]) -> Iterator[str]:
         yield line
     proc.wait()
     yield f"\n[EXIT {proc.returncode}]\n"
+
+
+# ── Detection / device info (ESP32 feature 2) ───────────────────────────────
+# UNTESTED ON HARDWARE: the regexes below were written against esptool's
+# documented/sample output (v4 "Chip is ..." and v5 "Chip type: ..." styles)
+# and are exercised only with canned output in tests/test_esp32_detect.py.
+
+# esptool read-only info commands we allow. flash_id also prints chip/MAC.
+ALLOWED_INFO_OPS = ("flash_id", "read_mac", "chip_id")
+DEFAULT_INFO_OP = "flash_id"
+INFO_TIMEOUT_S = 45
+
+# Common USB-serial bridges seen on ESP32 dev boards (VID:PID -> label).
+KNOWN_USB_BRIDGES = {
+    "10C4:EA60": "Silicon Labs CP210x",
+    "1A86:7523": "WCH CH340",
+    "1A86:55D4": "WCH CH9102",
+    "0403:6001": "FTDI FT232R",
+    "0403:6010": "FTDI FT2232",
+    "303A:1001": "Espressif USB-JTAG/serial (native USB)",
+    "303A:0002": "Espressif USB CDC (ESP32-S2/S3)",
+}
+
+
+def validate_info_op(op: str) -> str:
+    if op not in ALLOWED_INFO_OPS:
+        raise FlashValidationError(f"Invalid operation. Allowed: {', '.join(ALLOWED_INFO_OPS)}")
+    return op
+
+
+def _fmt_id(v) -> str:
+    return f"{v:04X}" if isinstance(v, int) else ""
+
+
+def list_usb_devices() -> dict:
+    """Serial devices with USB detail where pyserial exposes it.
+
+    Returns {"pyserial": bool, "devices": [...]}; without pyserial, falls back
+    to the bare glob list from list_serial_ports() with empty USB fields.
+    """
+    try:
+        from serial.tools import list_ports
+    except ImportError:
+        list_ports = None
+    devices = []
+    if list_ports is None:
+        for p in list_serial_ports():
+            devices.append({"device": p["device"], "description": p["description"],
+                            "hwid": p["hwid"], "vid": "", "pid": "", "vid_pid": "",
+                            "manufacturer": "", "product": "", "serial_number": "",
+                            "location": "", "usb": False, "likely_esp32": False,
+                            "bridge": ""})
+        return {"pyserial": False, "devices": devices}
+    for p in sorted(list_ports.comports(), key=lambda p: p.device):
+        vid, pid = _fmt_id(getattr(p, "vid", None)), _fmt_id(getattr(p, "pid", None))
+        vp = f"{vid}:{pid}" if vid and pid else ""
+        bridge = KNOWN_USB_BRIDGES.get(vp, "")
+        devices.append({
+            "device": p.device,
+            "description": getattr(p, "description", "") or "",
+            "hwid": getattr(p, "hwid", "") or "",
+            "vid": vid, "pid": pid, "vid_pid": vp,
+            "manufacturer": getattr(p, "manufacturer", None) or "",
+            "product": getattr(p, "product", None) or "",
+            "serial_number": getattr(p, "serial_number", None) or "",
+            "location": getattr(p, "location", None) or "",
+            "usb": bool(vp),
+            # Heuristic only: a known bridge does not prove an ESP32 is attached.
+            "likely_esp32": bool(bridge),
+            "bridge": bridge,
+        })
+    return {"pyserial": True, "devices": devices}
+
+
+def build_info_cmd(esptool_cmd: list[str], port: str, op: str = DEFAULT_INFO_OP,
+                   chip: str = "auto", baud: int = 115200) -> list[str]:
+    """Validated list-form read-only esptool command (never shell=True)."""
+    return [*esptool_cmd, "--chip", validate_chip(chip), "--port", validate_port(port),
+            "--baud", str(validate_baud(baud)), validate_info_op(op)]
+
+
+_INFO_PATTERNS = {
+    "chip": [r"^Chip is (.+?)\s*$", r"^Chip type:\s*(.+?)\s*$"],
+    "chip_family": [r"^Detecting chip type\.*\s*(\S+)\s*$", r"Connected to (ESP\S+)"],
+    "features": [r"^Features:\s*(.+?)\s*$"],
+    "crystal": [r"^Crystal is (\S+)", r"^Crystal frequency:\s*(\S+)"],
+    "mac": [r"^MAC:\s*([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5})"],
+    "chip_id": [r"^Chip ID:\s*(0x[0-9A-Fa-f]+)"],
+    "flash_manufacturer": [r"^Manufacturer:\s*([0-9A-Fa-f]+)"],
+    "flash_device": [r"^Device:\s*([0-9A-Fa-f]+)"],
+    "flash_size": [r"^Detected flash size:\s*(\S+)"],
+}
+
+
+def parse_esptool_info(output: str) -> dict:
+    """Pull chip/MAC/flash details out of esptool output. Missing keys -> None."""
+    info = {k: None for k in _INFO_PATTERNS}
+    for key, pats in _INFO_PATTERNS.items():
+        for pat in pats:
+            m = re.search(pat, output, re.MULTILINE)
+            if m:
+                info[key] = m.group(1).strip()
+                break
+    if info["mac"]:
+        info["mac"] = info["mac"].lower()
+    if info["chip_family"] is None and info["chip"]:
+        info["chip_family"] = info["chip"].split()[0].split("-")[0]
+    return info
+
+
+def run_info(cmd: list[str], timeout: int = INFO_TIMEOUT_S) -> dict:
+    """Run a read-only esptool command; return exit code, raw output, parsed info."""
+    try:
+        r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                           text=True, timeout=timeout, shell=False)
+        out, code = r.stdout or "", r.returncode
+    except FileNotFoundError:
+        out, code = "esptool could not be started (not found).", 127
+    except subprocess.TimeoutExpired as e:
+        out = (e.output if isinstance(e.output, str) else "") + \
+              f"\nTimed out after {timeout}s (is the board in bootloader mode?)."
+        code = 124
+    return {"exit_code": code, "ok": code == 0, "output": out,
+            "info": parse_esptool_info(out)}

@@ -958,6 +958,39 @@ async def esp32_flash(port: str = Form(...), chip: str = Form("auto"),
                 pass
     return StreamingResponse(gen(), media_type="text/plain")
 
+# ── ESP32 detection / device info (feature 2) — UNTESTED ON HARDWARE ─────────
+
+@app.get("/api/esp32/devices")
+async def esp32_devices():
+    try:
+        res = esp32_flasher.list_usb_devices()
+    except Exception as e:  # pragma: no cover - platform specific
+        raise HTTPException(status_code=500, detail=f"Could not list devices: {e}")
+    res["esptool_available"] = esp32_flasher.find_esptool() is not None
+    res["hardware_tested"] = False
+    return res
+
+@app.post("/api/esp32/chip-info")
+def esp32_chip_info(port: str = Form(...), op: str = Form(esp32_flasher.DEFAULT_INFO_OP),
+                    chip: str = Form("auto"), baud: str = Form("115200")):
+    # Sync def: FastAPI runs it in a threadpool, so the blocking esptool call is fine.
+    try:
+        esp32_flasher.validate_port(port)
+        esp32_flasher.validate_info_op(op)
+        esp32_flasher.validate_chip(chip)
+        baud_i = esp32_flasher.validate_baud(baud)
+    except esp32_flasher.FlashValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    esptool_cmd = esp32_flasher.find_esptool()
+    if esptool_cmd is None:
+        raise HTTPException(status_code=503, detail=(
+            "esptool is not installed on the machine running BakerPi Installer. "
+            "Install it with: pip install esptool"))
+    cmd = esp32_flasher.build_info_cmd(esptool_cmd, port, op, chip, baud_i)
+    res = esp32_flasher.run_info(cmd)
+    res.update({"port": port, "op": op, "command": cmd, "hardware_tested": False})
+    return res
+
 # ── ESP32 dev toolchain (ESP-IDF / Arduino-CLI) ──────────────────────────────
 # Installs onto the machine hosting this server (never over SSH).
 # UNTESTED ON HARDWARE: verified only with mocked subprocess in tests/.
