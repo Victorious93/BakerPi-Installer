@@ -211,7 +211,7 @@ Click **☀ Light** / **🌙 Dark** to switch themes. Your choice is saved in th
 
 ### 3.15 HTTP API
 
-Everything in the UI is also available as a JSON API (catalog, tools, install/update/uninstall/update-all, jobs, system, devices, profiles, VNC, SSH, manual, ESP32 flashing). FastAPI's auto-generated docs are at `/docs` on the running server. See the README for the endpoint tables.
+Everything in the UI is also available as a JSON API (catalog, tools, install/update/uninstall/update-all, jobs, system, devices, profiles, VNC, SSH, manual, ESP32 flashing and device detection). FastAPI's auto-generated docs are at `/docs` on the running server. See the README for the endpoint tables.
 
 ### 3.16 ESP32 flashing (esptool)
 
@@ -238,6 +238,32 @@ Some boards need you to hold **BOOT** while flashing starts. Writing the wrong i
 **API:** `GET /api/esp32/status`, `GET /api/esp32/ports`, `POST /api/esp32/flash` (multipart form: `port`, `chip`, `baud`, `address`, `firmware`; streams plain-text output).
 
 This is ESP32 feature 1 of 4; more ESP32 features are planned.
+
+### 3.17 ESP32 detection and device info
+
+> **Untested on hardware.** Device listing and esptool output parsing are covered by automated tests with mocked `pyserial` and canned esptool output only. Nothing here has been verified against a real ESP32 board yet.
+
+The **Detect / Device Info** area sits below the flashing controls in the **⚡ ESP32 Flashing** panel. It works on the computer running BakerPi Installer (same as flashing; not over SSH).
+
+**Usage:**
+
+1. Plug the board in and click **🔍 Scan devices**. Each serial device is listed with its port, USB **VID:PID**, and manufacturer/product where `pyserial` reports them. **Likely ESP32** is ticked when the VID:PID matches a common dev-board USB bridge (CP210x, CH340/CH9102, FTDI, Espressif native USB). That is only a guess: the bridge chip doesn't prove an ESP32 is attached.
+2. Select a device (this also selects it in the flashing **Serial port** list).
+3. Pick a read-only esptool command: `flash_id` (default; reports chip, features, crystal, MAC and flash size in one go), `read_mac` or `chip_id`. Then click **Read chip info**. The parsed chip type, MAC, chip ID and flash size appear in a table; the full esptool output is under **Raw esptool output**.
+
+Reading chip info briefly resets the board into its bootloader. Some boards need **BOOT** held. The command times out after 45 s. The **Chip** selection from the flashing controls is passed through (`auto` by default). Baud is fixed at 115200 in the UI.
+
+**Without pyserial:** the list falls back to bare `/dev/ttyUSB*`, `/dev/ttyACM*` and `/dev/cu.*` names, with no USB details. **Without esptool:** device scanning still works, and **Read chip info** returns HTTP 503 with install instructions.
+
+**Permissions:** same as flashing. On Linux your user usually needs to be in `dialout`, or esptool reports "Permission denied" in the raw output.
+
+**Safety:** the port, command (`flash_id`/`read_mac`/`chip_id` only), chip and baud are validated against the same allowlists as flashing. esptool runs as an argument list, never through a shell. Nothing is written to the board.
+
+**API:**
+- `GET /api/esp32/devices` returns `{pyserial, esptool_available, hardware_tested: false, devices: [{device, description, hwid, vid, pid, vid_pid, manufacturer, product, serial_number, location, usb, likely_esp32, bridge}]}`.
+- `POST /api/esp32/chip-info` (form: `port`, optional `op`=`flash_id`|`read_mac`|`chip_id`, `chip`, `baud`) returns `{ok, exit_code, output, info: {chip, chip_family, features, crystal, mac, chip_id, flash_manufacturer, flash_device, flash_size}, command, hardware_tested: false}`. Fields esptool didn't print are `null`. Errors: 400 invalid input, 503 esptool missing.
+
+This is ESP32 feature 2 of 4.
 
 ### Not available today
 
