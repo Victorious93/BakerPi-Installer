@@ -1,4 +1,8 @@
 <p align="center">
+  <img src="assets/logo.png" alt="BakerPi-Installer logo" width="200">
+</p>
+
+<p align="center">
   <img src="static/bakerpi-logo.png" alt="BakerPi logo" width="128">
 </p>
 
