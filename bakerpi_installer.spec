@@ -16,6 +16,7 @@ added_files = [
     ("tools",           "tools"),
     ("install_scripts", "install_scripts"),
     ("requirements.txt", "."),
+    ("docs/MANUAL.md",  "docs"),   # served by /api/manual (in-app Help view)
 ]
 
 a = Analysis(

@@ -207,7 +207,7 @@ Click **❓ Help** in the top bar to read this manual inside the app. The manual
 
 ### 3.14 Light/dark theme
 
-Click **☀ Light** / **☾ Dark** to switch themes. Your choice is saved in the browser's local storage.
+Click **☀ Light** / **🌙 Dark** to switch themes. Your choice is saved in the browser's local storage.
 
 ### 3.15 HTTP API
 
