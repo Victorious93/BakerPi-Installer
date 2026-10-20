@@ -288,6 +288,37 @@ The **Dev Toolchain** area at the bottom of the **⚡ ESP32 Flashing** panel ins
 
 This is ESP32 feature 3 of 4.
 
+### 3.19 ESP32 fleet firmware profiles (VictorModem, Pyra Claw)
+
+> **Untested on hardware.** Covered by automated tests with a mocked `subprocess` only. The offsets below come from the VictorModem and Pyra Claw project notes and **have not been verified on a real board**. Writing the wrong image at the wrong offset can leave a board unbootable until re-flashed.
+
+The **Fleet Firmware** area of the **⚡ ESP32 Flashing** panel flashes a full image set (bootloader, partition table, boot_app0, app) for a built-in profile in one `esptool write_flash` call, using the port and baud chosen at the top of the panel.
+
+**No published binaries.** Neither project publishes release binaries. You must build the firmware yourself with PlatformIO (`pio run -e <env>`); the output lands in `.pio/build/<env>/`.
+
+| Profile / env | Chip | bootloader | partitions | boot_app0 | firmware | Flash args |
+|---|---|---|---|---|---|---|
+| VictorModem `esp32s3_bridge5g` | esp32s3 | 0x0 | 0x8000 | 0xe000 | 0x10000 | esptool defaults / detect |
+| VictorModem `esp32s3_direct4g` | esp32s3 | 0x0 | 0x8000 | 0xe000 | 0x10000 | esptool defaults / detect |
+| VictorModem `tsim7600_4g` (huge_app partitions) | esp32 | 0x1000 | 0x8000 | 0xe000 | 0x10000 | esptool defaults / detect |
+| Pyra Claw `esp32dev` (`firmware/esp32-wake`) | esp32 | 0x1000 | 0x8000 | 0xe000 | 0x10000 | `--flash_mode dio --flash_freq 40m --flash_size detect` ("likely, PlatformIO defaults") |
+
+VictorModem's flash mode and size aren't specified by the project, so BakerPi passes no flash mode/size flags and lets esptool use its defaults and detection. It does not assume a particular module such as N16R8. Pyra Claw does not support ESP32-S3. Default baud is 460800.
+
+**Image sources.** Give an absolute path to a local PlatformIO build dir, upload the `.bin` files, or both (an upload overrides the file from the build dir). The build dir must be an existing directory, with no `..` components, newlines or NUL. Only the four fixed filenames (`bootloader.bin`, `partitions.bin`, `boot_app0.bin`, `firmware.bin`) are read from it, other files are ignored, and a symlink pointing out of the directory is refused. The required images are bootloader, partitions and firmware. Images are size-checked and checked for overlaps at the profile offsets.
+
+**boot_app0.bin is optional.** It ships with the Arduino-ESP32 framework (`framework-arduinoespressif32/tools/partitions/boot_app0.bin`), so PlatformIO usually doesn't copy it into `.pio/build/<env>/`. Upload it if you have it. If it's missing, BakerPi skips 0xe000, says so in the output, and leaves whatever OTA boot data is already there.
+
+**After flashing.** There is no runtime provisioning from BakerPi yet.
+- VictorModem: USB CDC serial at 115200 baud is a debug log only. Runtime control is over BLE GATT or a Wi-Fi WebSocket on port 81. No serial provisioning.
+- Pyra Claw: configuration is compile-time (`config.h`), plus MQTT on the Pi. No serial provisioning yet.
+
+Use any serial monitor (for example `pio device monitor -b 115200`) to watch logs. BakerPi has no built-in monitor.
+
+**API:** `GET /api/esp32/fleet/profiles`; `POST /api/esp32/fleet/flash` (multipart: `profile`, `env`, `port`, optional `baud`, optional `build_dir`, optional files `bootloader`, `partitions`, `boot_app0`, `firmware`). It streams plain text ending with `[EXIT n]`. It returns 400 for invalid input and 503 if esptool is missing. esptool runs as an argument list with `shell=False`.
+
+This is ESP32 feature 4 of 4.
+
 ### Not available today
 
 These are **not** in the code: automatic device discovery, a side-by-side fleet status dashboard, drift detection or re-sync, unattended first-boot provisioning, rollback, job cancel or retry, log export, saved passwords, SSH host-key pinning, a built-in VNC viewer, SD-card flashing (Pi Imager), a native Android app, and Pi Zero 2 W support. See [ROADMAP.md](../ROADMAP.md).
