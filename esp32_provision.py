@@ -6,14 +6,14 @@ are firmware logs and are skipped. Commands: hello, get, provision {cfg},
 reboot, factory_reset. Unknown commands get ok:false, err "unknown_cmd".
 
 The board accepts commands for 10 s after boot, or at any time while it is
-unprovisioned; changes apply after a reboot.
+unprovisioned (Pyra Claw: no ssid set); changes apply after a reboot.
 
 Secrets are NEVER logged or returned: they are replaced by "***" in every
 reply, transcript line and error message produced here.
 
 UNTESTED ON HARDWARE: covered by unit tests with a mocked serial port only.
-The firmware side lives in open PRs (Pyra Claw branch feat/serial-provisioning,
-victormodem PR #3); a board must run firmware with this feature.
+Firmware side: Pyra Claw merged (pyra-claw PR #4, 4d80adc, docs/PROVISIONING.md);
+VictorModem still in open victormodem PR #3; a board must run firmware with this feature.
 """
 from __future__ import annotations
 
@@ -82,7 +82,7 @@ SCHEMAS: dict[str, dict] = {
         "reject_unknown": True,   # we only send known keys anyway
         "envs": None,
         "fields": {
-            "ssid":         {"type": "str", "min": 1, "max": 32, "label": "Wi-Fi SSID"},
+            "ssid":         {"type": "str", "min": 0, "max": 32, "label": "Wi-Fi SSID"},
             "pass":         {"type": "str", "min": 0, "max": 63, "secret": True, "label": "Wi-Fi password"},
             "broker":       {"type": "str", "min": 1, "max": 128, "label": "MQTT broker host"},
             "broker_port":  {"type": "int", "min": 1, "max": 65535, "default": 1883, "label": "MQTT port"},
@@ -173,7 +173,7 @@ def scrub(text: str, secrets: list[str]) -> str:
 def validate_cfg(project: str, env: Optional[str], cfg: Any) -> dict:
     """Validate cfg client-side. Returns a cleaned copy (ints coerced).
 
-    Pyra Claw: partial (any non-empty subset). VictorModem: atomic, every
+    Pyra Claw: partial key set allowed, but all-or-nothing (one bad key rejects all). VictorModem: atomic, every
     field applicable to env is required, unknown keys rejected. Error messages
     name fields only, never values.
     """
@@ -217,6 +217,8 @@ def validate_cfg(project: str, env: Optional[str], cfg: Any) -> dict:
                 errors.append(f"{k}: length must be {f.get('min', 0)}-{f.get('max', '')}"); continue
             if "fmt" in f and not _FORMATS[f["fmt"]](v):
                 errors.append(f"{k}: invalid format ({f['fmt']})"); continue
+        if f.get("fmt") == "mac":
+            v = v.upper()   # Pyra Claw stores pc_mac upper-case
         out[k] = v
     if errors:
         raise SchemaError("; ".join(errors))
@@ -338,6 +340,7 @@ class Session:
         r = redact(reply, self.project)
         if isinstance(r.get("err"), str):
             r["err"] = scrub(r["err"], self.secrets)
+            r["err_text"] = humanize_err(r["err"])
         return r
 
     def hello(self, timeout: float = HELLO_TIMEOUT_S) -> dict:
@@ -359,6 +362,30 @@ class Session:
             return r
 
 
+_ERR_TEXT = {
+    "unknown_cmd": "The firmware does not know this command.",
+    "cfg_not_object": "cfg must be a JSON object.",
+    "nvs_open_failed": "The board could not open its settings storage (NVS).",
+    "unknown_key": "Unknown setting '{k}'.",
+    "bad_type": "Wrong type for '{k}'.",
+    "bad_value": "Invalid value for '{k}'.",
+}
+
+
+def humanize_err(err: Any) -> str:
+    """Readable text for firmware error codes (e.g. bad_value:broker_port)."""
+    if not isinstance(err, str) or not err:
+        return "Unknown error."
+    code, _, key = err.partition(":")
+    t = _ERR_TEXT.get(code)
+    if t is None:
+        return err
+    msg = t.format(k=key[:64])
+    if code in ("unknown_key", "bad_type", "bad_value"):
+        msg += " Nothing was saved (the whole request is rejected)."
+    return msg
+
+
 def _info(sess: Session, hello: dict) -> dict:
     project, env = hello.get("project"), hello.get("env")
     out = {"hello": hello, "logs": sess.logs, "hardware_tested": False}
@@ -373,7 +400,7 @@ def _info(sess: Session, hello: dict) -> dict:
 def _require_hello(sess: Session) -> dict:
     h = sess.hello()
     if not h.get("ok"):
-        raise ProvisionError("Board rejected hello: " + str(h.get("err", "unknown")))
+        raise ProvisionError("Board rejected hello: " + humanize_err(h.get("err")))
     return h
 
 
@@ -397,7 +424,7 @@ def do_apply(port: str, cfg: dict, reset: bool = False, **kw) -> dict:
         clean = validate_cfg(h.get("project"), h.get("env"), cfg)   # raises SchemaError
         out["reply"] = s.transact("provision", cfg=clean)
         out["sent_keys"] = sorted(clean)
-        out["note"] = "Changes apply after a reboot."
+        out["note"] = "Saved on the board; changes apply after a reboot."
         return out
 
 
