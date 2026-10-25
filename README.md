@@ -1,246 +1,144 @@
+<!-- victorious-fleet-readme-refresh:start -->
 <p align="center">
   <img src="assets/logo.png" alt="BakerPi-Installer logo" width="200">
 </p>
 
-<p align="center">
-  <img src="static/bakerpi-logo.png" alt="BakerPi logo" width="128">
-</p>
+# BakerPi-Installer
 
-# BakerPi Tool Installer
+Cross-platform host tool to install/manage tools on a Raspberry Pi Zero (BakerPi).
 
-**Install security-research tools, OS environments and more onto a Raspberry Pi Zero — from a PC, an Android phone, or a native desktop app.**
+**Package id:** `n/a (host tool)`
+
+> **Package note:** Not an Android APK.
+
+**Status:** CI green *(from [fleet-manifest ROADMAP](https://github.com/Victorious93/fleet-manifest/blob/main/ROADMAP.md))*
+
+## Install / build
+
+Python 3 + `requirements.txt`. Entry: `python3 launcher.py` / `python3 server.py` (see existing README). Tests: `python3 -m pytest`.
+
+_Steps above are taken from this repo’s build files / existing docs; anything not exercised in this refresh is unlabeled as verified on a device._
+
+## Victorious fleet
+
+- Monorepo: [https://github.com/Victorious93/victorious-fleet](https://github.com/Victorious93/victorious-fleet)
+- Fleet site: [https://victorious-framework.pages.dev](https://victorious-framework.pages.dev)
+
+<!-- victorious-fleet-readme-refresh:end -->
+
+Cross-platform tool installer for **BakerPi** — the [P4wnP1 A.L.O.A.](https://github.com/Victorious93/P4wnP1_aloa) fork adapted for the **Raspberry Pi Zero 1.3** (no built-in Wi‑Fi/Bluetooth; USB OTG only).
+
+Install security-research tools, OS environments, IoT services, development utilities, and more onto your Pi Zero — from a PC, from an Android phone over USB OTG, or as a native desktop application.
 
 [![Python](https://img.shields.io/badge/Python-3.x-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-![Target](https://img.shields.io/badge/target-Pi%20Zero%201.3%20(USB%20OTG)-c51a4a)
-![Catalog](https://img.shields.io/badge/catalog-81%20tools%20%C2%B7%2013%20categories-informational)
-![License](https://img.shields.io/badge/license-none%20specified-lightgrey)
+[![FastAPI](https://img.shields.io/badge/API-FastAPI-009688)](https://fastapi.tiangolo.com/)
+![Platform](https://img.shields.io/badge/target-Pi%20Zero%201.3%20(USB%20OTG)-c51a4a)
+![Catalog](https://img.shields.io/badge/catalog-81%20tools%20·%2013%20categories-informational)
 
-## Overview
+## Quick start
 
-BakerPi Tool Installer is a cross-platform installer UI for **BakerPi**, the [P4wnP1 A.L.O.A.](https://github.com/Victorious93/P4wnP1_aloa) fork adapted for the **Raspberry Pi Zero 1.3** (no built-in Wi-Fi/Bluetooth; USB OTG only). A single FastAPI backend (`server.py`) serves a responsive web UI that can run in a native window (`launcher.py`, via pywebview), in a browser over SSH, or on the Pi itself.
+### Native desktop app (recommended on PC)
 
-In short: it runs on your PC (or on the Pi itself), serves a local web UI, and installs/updates/removes catalog tools on a Raspberry Pi by running shell commands over SSH (or locally in on-device mode).
+Pre-built binary (no Python needed), when distributed via releases:
 
-*Screenshots coming soon.*
+```bash
+# Linux
+chmod +x BakerPi_Installer && ./BakerPi_Installer
 
-📖 **New here? Read the full how-to manual: [docs/MANUAL.md](docs/MANUAL.md)** (also available in the app via the **❓ Help** button).
+# Windows: BakerPi_Installer.exe or BakerPi_Installer_Setup.exe
+```
 
-### Place in the Victorious fleet
+From source (native window via pywebview):
 
-BakerPi Installer is a **host-side desktop/CLI tool** in Don Victor's Victorious fleet. It is not a service running inside a Pi payload and not a mobile app. The same codebase has three entry points:
+```bash
+./run_app.sh          # Linux / macOS
+run_app.bat           # Windows
+```
 
-- `server.py` / `run_pc.*` / `run_ondevice.sh`: a FastAPI server exposing an HTTP web UI and JSON API (default port `8080`, change with `--server-port`).
-- `launcher.py` / `run_app.*`: the same server run in-process and shown in a native pywebview window. It binds `127.0.0.1` only and picks a free port starting at `8080` unless `--server-port` is given.
-- Outbound to the Pi: Paramiko SSH to the Pi (default `root@172.16.0.1`, reached over USB RNDIS/OTG), or direct local command execution with `--mode local` when running on the Pi.
+### Web server mode (headless / SSH)
 
-| | |
-|---|---|
-| **Connection class** | **`HOST_PROCESS_TOOL`** (localhost HTTP + CLI). Confirmed against `server.py`, `launcher.py` and the `run_*` scripts: a host process serving HTTP plus command-line entry points, with SSH/USB RNDIS as its outbound link to the device. |
-| **Ships today** | Desktop binaries only: Linux AppImage and Windows EXE/installer (built by CI; no release published yet, see [Install](#install)). |
-| **Android** | **No APK ships today.** The only Android option is the PWA in [Android (PWA)](#android-pwa). A native Android app is a roadmap item and is **not implemented** (see [ROADMAP.md](ROADMAP.md)). |
+```bash
+# PC — SSH to Pi over USB RNDIS
+./run_pc.sh           # Linux / macOS
+run_pc.bat            # Windows
 
-Network exposure to be aware of: `server.py` currently listens on `0.0.0.0` (all interfaces), not just localhost, and the API has no authentication. This is deliberate for on-device mode (phone/PC reach the Pi at `http://172.16.0.1:8080`), but in PC mode it means other hosts on your network can reach the UI. Only `launcher.py` is localhost-only. Run on trusted networks only.
+# On-device — run on the Pi Zero; browse from phone at http://172.16.0.1:8080
+sudo ./run_ondevice.sh
+```
 
-#### Signing (planned / future note)
+### Android (PWA)
 
-Because no APK ships today, **there is no Android app-signing key in this repository** (no keystore or key files are tracked), and none of the current CI workflows perform code signing on the Linux or Windows binaries. For when the planned Android app lands (**not implemented yet**), the fleet policy is:
+1. With the Pi running `run_ondevice.sh`, open Chrome → `http://172.16.0.1:8080`.
+2. Menu → **Add to Home Screen** (installable PWA; `static/manifest.json`).
 
-- Debug builds use the app's own fixed debug key.
-- Any release signing key must live **only in CI secrets** and must never be committed to the repository.
+A native Android APK path is documented against the BakerPi / P4wnP1_aloa fork’s `android/` tree when present.
 
-## Key features
+## Features
 
-- **13 categories, 81 tools** (`tools/catalog.json` v1.0): HID/USB, network, security research, Wi-Fi/wireless, GPIO/sensors, IoT, media, dev tools, monitoring, SDR, home automation, infrastructure, OS environments
-- **Kali Linux and Parrot OS overlays**: headless, or XFCE/MATE desktop via VNC
-- **Live install output**: SSE-streamed job logs (`/api/jobs/{id}/stream`)
-- **Batch install / update / uninstall** with multi-select
-- **System info bar**: hostname, CPU temperature, RAM, disk (`/api/system`)
-- **Responsive, installable PWA**: phone portrait through desktop
-- **Two modes, one codebase**: SSH from a PC, or run directly on the Pi
-- **VNC control**: start/stop Kali/Parrot desktop sessions from the UI
-- **Device inventory & targeting** *(new, untested on real hardware — see [Multiple devices](#multiple-devices-device-inventory--targeting))*: keep a list of Pi targets, pick the active one, or run installs on several in parallel
-- **Fleet install profiles** *(new, untested on real hardware — see [Fleet install profiles](#fleet-install-profiles))*: save a named set of tools once and apply it to one or many devices in a single action
+- **13 categories, 81 tools** (catalog `tools/catalog.json` v1.0) — HID/USB, network, security research, Wi‑Fi/wireless, GPIO/sensors, IoT, media, dev tools, monitoring, SDR, home automation, infrastructure, OS environments
+- **Kali Linux + Parrot OS** overlays (headless or XFCE/MATE desktop via VNC)
+- **Native desktop app** — pywebview embeds the UI (no separate browser required)
+- **Real-time install output** — SSE-streamed job logs (`/api/jobs/{id}/stream`)
+- **Batch install / update / uninstall** — multi-select workflows
+- **System info bar** — hostname, CPU temp, RAM, disk (`/api/system`)
+- **Responsive PWA** — phone portrait through desktop; home-screen installable
+- **PC SSH mode + on-device mode** — single FastAPI codebase (`server.py` + `launcher.py`)
+- **VNC desktop control** — start/stop Kali/Parrot desktop sessions from the UI
 
-> **Security note:** Tools such as nmap, aircrack-ng and Metasploit are for authorized pentesting, red-team work and research only. DoS flood tools and medical/critical-infrastructure attack tools are excluded from the catalog.
+> **Security note:** Tools such as nmap, aircrack-ng, Metasploit, etc. are for authorized pentesting, red-team work, and research only. DoS flood tools and medical/critical-infrastructure attack tools are excluded from the catalog.
 
-## Install
+## Screenshots
 
-### Pre-built binaries
+| Desktop app (tool grid) | Install job stream | System info | VNC control | Android PWA |
+|---|---|---|---|---|
+| *TODO* | *TODO* | *TODO* | *TODO* | *TODO* |
 
-The release workflow (`.github/workflows/release.yml`) publishes these assets on `v*` tags. No GitHub release has been published yet, so build from source for now.
+Suggested captures: category filter pills + search; multi-select install with live SSE log; Kali/Parrot OS environment cards; VNC start/stop; phone-width PWA on Android Chrome.
 
-| Platform | Asset |
-|---|---|
-| Linux x86-64 | `BakerPi_Installer-<tag>-x86_64.AppImage` |
-| Windows | `BakerPi_Installer-<tag>-windows.exe` (standalone) |
-| Windows | `BakerPi_Installer_Setup-<tag>.exe` (installer) |
+## Requirements
 
-### From source
+**Installer host (PC or Pi)**
+
+- Python 3 with packages in `requirements.txt`: FastAPI, uvicorn, paramiko, aiofiles, python-multipart, pywebview
+- Linux native window: `libwebkit2gtk-4.0-dev` and `libgtk-3-dev` (or distro equivalents)
+- Optional for binaries: `pyinstaller`
+
+**Target hardware**
+
+- Raspberry Pi Zero 1.3 (ARM1176, USB OTG data port)
+- USB OTG cable; Pi reachable at `172.16.0.1` over USB RNDIS/CDC-ECM
+- Raspberry Pi OS Lite (Bookworm recommended)
+- MicroSD ≥ 8 GB (≥ 32 GB recommended for OS environment installs)
+- Optional USB Wi‑Fi adapter for wireless work (e.g. Alfa AWUS036NHA / AR9271 for monitor/injection/AP)
+
+## Install from source
 
 ```bash
 git clone https://github.com/Victorious93/BakerPi-Installer
 cd BakerPi-Installer
 pip3 install -r requirements.txt
+
+# Native app — SSH to Pi over USB
+python3 launcher.py --mode ssh --host 172.16.0.1 --user root
+
+# Native app — on the Pi
+sudo python3 launcher.py --mode local
+
+# Headless web server — PC (opens browser)
+python3 server.py --mode ssh --host 172.16.0.1 --user root
+
+# Headless web server — on-device
+sudo python3 server.py --mode local --no-browser
 ```
 
-**Requirements**
-
-- Python 3 and the packages in `requirements.txt` (FastAPI, uvicorn, paramiko, aiofiles, python-multipart, pywebview)
-- Linux native window: `libwebkit2gtk-4.0-dev` and `libgtk-3-dev` (or distro equivalents)
-
-**Target hardware**
-
-- Raspberry Pi Zero 1.3 (ARM1176, USB OTG data port) with a USB OTG cable; Pi reachable at `172.16.0.1` over USB RNDIS/CDC-ECM
-- Raspberry Pi OS Lite (Bookworm recommended)
-- MicroSD >= 8 GB (>= 32 GB recommended for OS environment installs)
-- Optional USB Wi-Fi adapter for wireless work (e.g. Alfa AWUS036NHA / AR9271 for monitor/injection/AP)
-
-## Usage
-
-### Native desktop app (recommended on PC)
+## Build standalone binaries
 
 ```bash
-./run_app.sh --mode ssh          # Linux / macOS: SSH to the Pi (172.16.0.1)
-run_app.bat --mode ssh           # Windows
-
-# or directly
-python3 launcher.py --mode ssh --host 172.16.0.1 --user root   # SSH to Pi over USB
-sudo python3 launcher.py --mode local                          # on the Pi
+./build_app.sh        # Linux / macOS → dist/
+build_app.bat         # Windows
 ```
 
-> **Note:** `launcher.py` (and therefore `run_app.*`) defaults to `--mode local`, which runs install commands on the machine it is started on. The comments inside `run_app.sh` / `run_app.bat` say the default is SSH, but the code does not; pass `--mode ssh` explicitly when driving a Pi from a PC. `run_pc.*` always uses SSH mode.
-
-### Web server mode (headless / SSH)
-
-```bash
-./run_pc.sh           # PC: SSH to Pi over USB RNDIS (browser at http://localhost:8080)
-run_pc.bat            # Windows
-
-sudo ./run_ondevice.sh   # on the Pi Zero; browse from a phone at http://172.16.0.1:8080
-```
-
-Or run the server directly:
-
-```bash
-python3 server.py --mode ssh --host 172.16.0.1 --user root     # PC, opens browser
-sudo python3 server.py --mode local --no-browser               # on-device
-```
-
-Use `--server-port` to change the web UI port (default `8080`).
-
-### Multiple devices (device inventory & targeting)
-
-> **Status: UNTESTED on real hardware.** This feature was developed and checked with unit/API tests (fake command execution) and a UI walkthrough against a fake backend only. It has **not** been run against a real Raspberry Pi Zero (or any real SSH target). Expect rough edges and please report them.
-
-The app still starts with a single target taken from the command line, exactly as before. On top of that you can keep an inventory of Pi targets and choose where actions run.
-
-**Concepts**
-
-| Term | Meaning |
-|---|---|
-| **Default device** | Built-in entry (`id: default`) built from `--mode/--host/--user/--port/--key-file`. Always present, never saved to disk, cannot be edited or removed. With no config, this is the only device, so existing usage is unchanged. |
-| **Registry** | Extra devices you add: `id`, `label`, connection `type` (`ssh`, `usb-rndis`, `local`), `host`, `user`, SSH `port` (plus an optional key-file *path*). `usb-rndis` is SSH over the USB gadget link and defaults the host to `172.16.0.1`. |
-| **Target** | Devices that Install / Update / Remove / Update All run on. Several targets run **in parallel**, one job task per device. |
-| **Viewing** | The first selected device. The tool grid's installed-status, the system-info bar and VNC status follow it. |
-
-**In the UI:** click the device chip in the top bar to open the **Devices** panel. Add / edit / remove devices, tick **T** (target) for one or more devices, and pick **V** (viewing) with the radio. Each row has a **Connect** button for SSH devices (optional password, kept in memory only; key/agent auth also works). Multi-device jobs show one log tab per device with a status dot, and the system-info bar and job title name the device they belong to.
-
-**Where it is stored:** `devices.json` in a per-user config directory (never in the repo):
-
-| OS | Path |
-|---|---|
-| Linux | `$XDG_CONFIG_HOME/BakerPi-Installer/devices.json` (default `~/.config/...`) |
-| macOS | `~/Library/Application Support/BakerPi-Installer/devices.json` |
-| Windows | `%APPDATA%\BakerPi-Installer\devices.json` |
-
-Override with `--devices-file PATH` (`server.py` and `launcher.py`) or `BAKERPI_DEVICES_FILE`. The file is written with mode `0600`, holds no passwords, and `devices.json` is in `.gitignore`. An unreadable file is moved to `devices.json.bad` and ignored.
-
-**API** (all optional-target parameters fall back to the current selection, which falls back to the default device):
-
-| Endpoint | Notes |
-|---|---|
-| `GET/POST /api/devices` | list / add |
-| `GET/PUT/DELETE /api/devices/{id}` | read / partial update / remove (`default` is read-only) |
-| `GET/PUT /api/devices/selected` | read / set `{"device_ids": [...]}` (first = viewing) |
-| `POST /api/devices/{id}/connect` | open SSH for a device; body `{"password"?, "key_file"?}` |
-| `POST /api/install`, `/api/update`, `/api/uninstall` | body accepts `device_id` or `device_ids` |
-| `POST /api/update-all` | optional body `{device_ids}`; per-device installed list, devices with nothing installed are reported as `skipped_devices` |
-| `GET /api/tools`, `/api/tools/{id}/status`, `/api/system`, `/api/services/vnc/*` | optional `?device_id=` (VNC start: `device_id` in body) |
-| `GET /api/jobs/{id}`, `/api/jobs/{id}/stream` | per-device `devices[]` status/logs; SSE events carry `device`, `line`, `device_status`, and a final `done` with a per-device summary |
-
-The legacy `POST /api/ssh/connect` (the **⚙ SSH** panel) still works and re-points the default device.
-
-**Known limits / TODO**
-
-- Status views (tool installed-state, system info, VNC) are single-device (the *viewing* device); there is no side-by-side fleet status table yet.
-- No per-device concurrency limit, retry, or cancel for running jobs; a failed device does not stop the others.
-- No saved passwords, SSH host-key pinning (host keys are auto-accepted, as before), device discovery, or groups/tags yet.
-- Jobs and logs are in memory only (lost on restart).
-- Tests (`tests/`) cover the registry logic and API targeting with faked commands only — no real SSH or hardware.
-
-### Fleet install profiles
-
-> **Status: UNTESTED on real hardware.** Like the device targeting it builds on, this was developed and checked with unit/API tests (fake command execution) and a UI walkthrough against a fake backend only. It has **not** been run against a real Raspberry Pi Zero (or any real SSH target).
-
-A **profile** is a named, reusable, ordered set of tools (a selection from `tools/catalog.json`) that you can apply to one or many devices in one action, for example a "recon kit" or a "wifi kit".
-
-| Field | Notes |
-|---|---|
-| `id` | Generated 8-character id |
-| `name` | Required, up to 64 characters, unique (case-insensitive) |
-| `description` | Optional, up to 500 characters |
-| `tool_ids` | Ordered, de-duplicated, at least one. Each id must exist in the catalog; unknown ids are rejected |
-
-**In the UI:** click **📦 Profiles** in the top bar. **+ New profile** opens a form with a filterable, category-grouped tool picker (or **Use grid selection** to start from the tools currently ticked in the grid). Each saved profile has **⬇ Apply to selected device(s)**, **Edit** and **✕**. Apply asks for confirmation, then installs the profile's tools in order on the current *target* devices from the [Devices panel](#multiple-devices-device-inventory--targeting), in parallel with one log tab per device. With nothing explicitly selected it falls back to the default device, exactly like Install.
-
-**How apply works:** it is an ordinary *install* job (the same code path as `POST /api/install`) for each tool in the profile on each selected device. A failed tool is logged and the remaining tools still run; a failed or unreachable device is marked failed without stopping the others. Apply itself never uninstalls or updates anything. Tools that are already installed are simply run through their install step again, as with Install today.
-
-**Where it is stored:** `profiles.json` next to `devices.json` in the per-user config directory (never in the repo):
-
-| OS | Path |
-|---|---|
-| Linux | `$XDG_CONFIG_HOME/BakerPi-Installer/profiles.json` (default `~/.config/...`) |
-| macOS | `~/Library/Application Support/BakerPi-Installer/profiles.json` |
-| Windows | `%APPDATA%\BakerPi-Installer\profiles.json` |
-
-Override with `--profiles-file PATH` (`server.py` and `launcher.py`) or `BAKERPI_PROFILES_FILE`. The file is written with mode `0600`, contains only profile names, descriptions and tool ids (no hosts, passwords or keys), and `profiles.json` is in `.gitignore`. An unreadable file is moved to `profiles.json.bad` and ignored. Tool ids are checked against the catalog when a profile is saved; if a later catalog no longer has one of them, the profile is still listed but cannot be applied until you edit it.
-
-**API** (target parameters behave as for the install endpoints: `device_ids` > `device_id` > current selection > default device):
-
-| Endpoint | Notes |
-|---|---|
-| `GET/POST /api/profiles` | list / create `{"name", "description"?, "tool_ids"}` |
-| `GET/PUT/DELETE /api/profiles/{id}` | read / partial update / delete |
-| `POST /api/profiles/{id}/apply` | optional body `{device_id}` or `{device_ids}`; returns `job_id`, `devices`, `profile`, `tool_ids`; follow it with the existing `/api/jobs/{id}` and `/api/jobs/{id}/stream` |
-
-**Known limits / TODO**
-
-- Profiles only *install*; there is no drift detection, re-sync, or "apply as update".
-- Profiles are not tied to individual devices, and cannot be exported, imported or shared yet.
-- Everything noted under [Multiple devices](#multiple-devices-device-inventory--targeting) (no retry/cancel, in-memory job logs, auto-accepted SSH host keys) applies here too.
-- Tests (`tests/`) cover profile storage, catalog validation and apply-to-devices targeting with faked commands only — no real SSH or hardware.
-
-### Android (PWA)
-
-1. With the Pi running `run_ondevice.sh`, open Chrome at `http://172.16.0.1:8080`.
-2. Menu -> **Add to Home Screen** (manifest: `static/manifest.json`).
-
-### ESP32 flashing (untested on hardware)
-
-The **⚡ ESP32 Flashing** sidebar entry flashes a `.bin` to an ESP32 plugged into the computer running the app, using `esptool` (`pip install esptool`). Pick port, chip, baud and flash address, then watch esptool's output live. Not yet verified on a real ESP32. The **Detect / Device Info** area lists connected serial devices (USB VID:PID, manufacturer) and reads chip type, MAC and flash size via `esptool flash_id`/`read_mac`/`chip_id` (`GET /api/esp32/devices`, `POST /api/esp32/chip-info`), also untested on hardware. See [docs/MANUAL.md §3.16–3.17](docs/MANUAL.md).
-
-### ESP32 dev toolchain (untested on hardware)
-
-The **Dev Toolchain** area of the ESP32 panel installs **ESP-IDF** (git clone + `install.sh`) and **Arduino-CLI** (optionally with the `esp32:esp32` core) onto the computer running the app, on Linux or macOS, with live output and installed/not-installed status. ESP-IDF is 1–2 GB and very slow on a Pi Zero. Not yet verified on real hardware. See [docs/MANUAL.md §3.18](docs/MANUAL.md).
-
-### ESP32 fleet firmware profiles (untested on hardware)
-
-The **Fleet Firmware** area of the ESP32 panel has built-in profiles for **VictorModem** (`esp32s3_bridge5g`, `esp32s3_direct4g`, `tsim7600_4g`) and **Pyra Claw** (`esp32dev`). It flashes bootloader, partitions, boot_app0 and firmware at the profile offsets in one esptool call, from a local PlatformIO `.pio/build/<env>/` dir or uploaded `.bin` files (`GET /api/esp32/fleet/profiles`, `POST /api/esp32/fleet/flash`). Neither project publishes binaries, and the offsets haven't been verified on hardware. See [docs/MANUAL.md §3.19](docs/MANUAL.md).
-
-### ESP32 USB serial provisioning (untested on hardware)
-
-The **USB Provisioning** area of the ESP32 panel configures VictorModem and Pyra Claw boards over USB serial (fleet provisioning contract v1, JSON lines at 115200). It can detect the board (`hello`), build a form from the project/env schema, read the config with secrets redacted, apply it, reboot, and factory reset (with confirmation). The board must run firmware with this feature: Pyra Claw's side is merged (pyra-claw PR #4), while VictorModem's is still in open PR #3. Tested with a mocked serial port only. See [docs/MANUAL.md §3.20](docs/MANUAL.md).
+Also: `bakerpi_installer.spec` (PyInstaller), `installer.iss` (Inno Setup), `.github/workflows/build-installers.yml` and `release.yml`.
 
 ## Tool categories
 
@@ -249,7 +147,7 @@ The **USB Provisioning** area of the ESP32 panel configures VictorModem and Pyra
 | HID & USB | BakerPi core, DuckyScript samples, USB image tools |
 | Network | dnsmasq, wireguard, openvpn, responder, nginx, tcpdump |
 | Security research | nmap, masscan, nikto, sqlmap, hydra, hashcat, metasploit, impacket |
-| Wi-Fi & wireless | aircrack-ng, bettercap, kismet, hcxdumptool |
+| Wi‑Fi & wireless | aircrack-ng, bettercap, kismet, hcxdumptool |
 | GPIO & sensors | RPi.GPIO, pigpio, i2c-tools, CircuitPython |
 | IoT protocols | mosquitto, node-red, zigbee2mqtt, pymodbus |
 | Media | mpd, ffmpeg, icecast2, jellyfin |
@@ -260,11 +158,11 @@ The **USB Provisioning** area of the ESP32 panel configures VictorModem and Pyra
 | Infrastructure | k3s, tailscale, avahi, openssh |
 | OS environments | Kali (headless/XFCE), Parrot (headless/MATE) |
 
-Exact package lists and install scripts live in `tools/catalog.json` and `install_scripts/`.
+Exact package lists and install scripts live under `tools/catalog.json` and `install_scripts/`.
 
-### OS environments (Kali + Parrot)
+## OS environments (Kali + Parrot)
 
-These overlay the Kali or Parrot repositories on Raspberry Pi OS; Pi OS packages keep higher priority.
+Overlays Kali or Parrot repositories on Raspberry Pi OS; Pi OS packages stay higher priority.
 
 | Option | Approx. disk | Notes |
 |---|---|---|
@@ -273,70 +171,31 @@ These overlay the Kali or Parrot repositories on Raspberry Pi OS; Pi OS packages
 | Parrot OS Core (headless) | ~1.8 GB | Pentest + privacy CLI |
 | Parrot OS + MATE | ~3 GB | GUI via VNC (port 5901) |
 
-The install script sets a default VNC password of `bakerpi`. Change it with `vncpasswd` after install.
-
-## Build from source
-
-Builds a standalone executable with PyInstaller (`bakerpi_installer.spec`):
-
-```bash
-./build_app.sh        # Linux / macOS -> dist/BakerPi_Installer
-build_app.bat         # Windows
-```
-
-`build_app.sh` installs `requirements.txt` and `pyinstaller`, and builds an AppImage if `appimagetool` is available. On Linux, install the WebKit/GTK dev headers first:
-
-```bash
-sudo apt-get install libwebkit2gtk-4.0-dev libgtk-3-dev libglib2.0-dev
-```
-
-Windows installers use Inno Setup (`installer.iss`). CI builds are defined in `.github/workflows/build-installers.yml` and `release.yml`.
+Default VNC password documented historically as `bakerpi` — change with `vncpasswd` after install.
 
 ## Project structure
 
 ```text
-server.py              FastAPI app (catalog, install jobs, SSH, VNC, system info, device + profile API)
-device_registry.py     Device inventory: persisted Pi targets + selection (stdlib only)
-esp32_flasher.py       ESP32 flashing helpers: esptool wrapper, input validation, port listing, USB device detection, chip-info parsing (untested on hardware)
-esp32_toolchain.py     ESP32 dev toolchain installer: ESP-IDF / Arduino-CLI (untested on hardware)
-esp32_fleet_profiles.py  ESP32 fleet firmware profiles (VictorModem, Pyra Claw) + multi-image flash (untested on hardware)
-esp32_provision.py     ESP32 USB serial provisioning, contract v1 host side (pyserial; untested on hardware)
-profile_registry.py    Fleet install profiles: persisted named toolsets (stdlib only)
-tests/                 pytest suite (no hardware needed)
-docs/MANUAL.md         Full user manual (also shown in-app via ❓ Help, GET /api/manual)
+server.py              FastAPI app (catalog, install jobs, SSH, VNC, system info)
 launcher.py            pywebview native shell around the same UI
-static/                Web UI (index.html), PWA manifest, logo, favicon
+static/                Web UI (index.html), PWA manifest, favicon
 tools/catalog.json     Tool definitions (81 tools, 13 categories)
-install_scripts/       Shell helpers per category (HID, network, security, ...)
+install_scripts/       Shell helpers per category (HID, network, security, …)
 run_*.sh|.bat          Launch helpers (app / PC / on-device)
 build_app.*            PyInstaller packaging
 bakerpi-installer.desktop
 ```
 
-## Tests
-
-```bash
-pip3 install -r requirements-dev.txt
-python3 -m pytest
-```
-
-Tests need no Pi, SSH server or network. CI (`build-installers.yml`) runs them in a `pytest` job in addition to the installer builds.
-
 ## Contributing
 
 - Keep catalog entries accurate (`check_cmd` / packages / scripts).
-- Prefer additive tools that fit authorized research; do not add excluded DoS/critical-infrastructure attack tooling.
-- Test both SSH mode and local mode when changing `server.py` job streaming.
-- Commits must carry a DCO sign-off (`git commit -s`).
-
-## Roadmap
-
-Planned directions (**not yet implemented or tested**) include multi-Pi fleet management (multi-device targeting, install profiles, inventory, drift detection, unattended provisioning, batch update/rollback) and a native Android app with built-in Pi Imager SD-card flashing that could flash and provision BakerPi onto a Pi over USB-OTG directly from the phone and then fully control the connected Pi from the phone, plus the Raspberry Pi Zero 2 W as an additional planned (untested) target alongside the current Pi Zero 1.3. See [ROADMAP.md](ROADMAP.md) for details.
+- Prefer additive tools that fit authorized research; do not add excluded DoS/critical-infra attack tooling.
+- Test SSH mode and local mode when changing `server.py` job streaming.
 
 ## License
 
 **No `LICENSE` file is present in this repository.** Add an SPDX license before treating the project as redistributable open source. Until then, default copyright remains with the author; clarify terms before accepting external contributions.
 
-## Credits
+## Part of BakerPi
 
-Built for the [BakerPi fork of P4wnP1 A.L.O.A.](https://github.com/Victorious93/P4wnP1_aloa), adapted for the Raspberry Pi Zero 1.3. The installer also works with any Raspberry Pi OS system reachable over SSH or USB RNDIS.
+Designed for the [BakerPi fork of P4wnP1 A.L.O.A.](https://github.com/Victorious93/P4wnP1_aloa), but usable with any Raspberry Pi OS system reachable over SSH or USB RNDIS.
