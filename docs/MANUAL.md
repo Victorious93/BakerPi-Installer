@@ -211,7 +211,7 @@ Click **☀ Light** / **🌙 Dark** to switch themes. Your choice is saved in th
 
 ### 3.15 HTTP API
 
-Everything in the UI is also available as a JSON API (catalog, tools, install/update/uninstall/update-all, jobs, system, devices, profiles, VNC, SSH, manual, ESP32 flashing and device detection). FastAPI's auto-generated docs are at `/docs` on the running server. See the README for the endpoint tables.
+Everything in the UI is also available as a JSON API (catalog, tools, install/update/uninstall/update-all, jobs, system, devices, profiles, VNC, SSH, manual, ESP32 flashing and device detection, optional scrcpy). FastAPI's auto-generated docs are at `/docs` on the running server. See the README for the endpoint tables.
 
 ### 3.16 ESP32 flashing (esptool)
 
@@ -390,6 +390,54 @@ Status codes:
 
 A firmware rejection comes back as HTTP 200 with `reply.ok:false`, `reply.err` and a readable `reply.err_text`.
 
+### 3.21 Android device screen (scrcpy + adb, optional)
+
+> **Untested on hardware.** Covered by automated tests with a mocked `subprocess` only. It has **not** been run against a real Android phone, a real package manager install, or a real Pi. Treat as experimental.
+
+Credit: [scrcpy by Genymobile, Apache-2.0](https://github.com/Genymobile/scrcpy). BakerPi does not bundle scrcpy or adb; it only finds them on `PATH` and, if you ask, installs them with your system's package manager.
+
+Open **📱 Device Screen (scrcpy)** under **Android** in the sidebar. The panel mirrors and controls a USB-connected Android phone in a scrcpy window on **the computer running BakerPi Installer** (your PC with the native window, or the Pi itself in on-device mode). It never runs over SSH on a remote Pi.
+
+**Optional and off by default.** Nothing is installed at startup. The **Install scrcpy + adb** button asks for confirmation, and the API refuses to install unless the request carries `confirm: true`.
+
+**Status:** a green dot means the program was found on `PATH`. The version comes from `scrcpy --version` and `adb version`.
+
+**How it installs** (one route per host, picked automatically):
+
+| Host | Detected by | Commands |
+|---|---|---|
+| Debian, Ubuntu, Raspberry Pi OS | `ID` / `ID_LIKE` in `/etc/os-release` is `debian`, `ubuntu` or `raspbian`, and `apt-get` is on `PATH` | `apt-get update`, then `apt-get install -y scrcpy adb` (with `DEBIAN_FRONTEND=noninteractive`) |
+| Windows | `winget` on `PATH` | `winget install --exact --id Genymobile.scrcpy --accept-source-agreements --accept-package-agreements` |
+| macOS | `brew` on `PATH` | `brew install scrcpy`, then `brew install --cask android-platform-tools` |
+
+If none applies, the panel shows manual-install instructions linking to [github.com/Genymobile/scrcpy](https://github.com/Genymobile/scrcpy), and the install API returns HTTP 424 with the same instructions. After a Windows install you may need to restart the app before scrcpy and adb show up on `PATH`. The scrcpy package in older Debian/Raspberry Pi OS releases can be old.
+
+**Root on Linux:** apt needs root. If the app runs as root, the commands run as-is. Otherwise they run through `sudo -n`, which never prompts: if sudo wants a password the step fails with a hint to run the app as root or run the commands yourself. If `sudo` is not installed, the install returns HTTP 424 without running anything.
+
+**View device screen**
+
+1. On the phone, enable **Developer options → USB debugging** and plug it into the computer running the app.
+2. Press **↻** to list devices (`adb devices -l`). Accept the "Allow USB debugging?" prompt on the phone; devices still `unauthorized`, `offline` or `no permissions` are listed but cannot be picked.
+3. Optionally set **Max size** (longest side in pixels, `0` = full resolution; maps to `--max-size`).
+4. Press **📱 View device screen**. BakerPi starts `scrcpy --serial <serial>` in the background and returns straight away. Close the scrcpy window to stop.
+
+On Linux the app must run inside a graphical session (`DISPLAY` or `WAYLAND_DISPLAY` set). A headless Pi in on-device mode has no screen to show the window, so viewing is refused there with HTTP 424. If scrcpy exits within about a second (for example, no display or a device error), the API returns HTTP 502 with its output. scrcpy's output goes to a temp log file named `bakerpi-scrcpy-*.log`.
+
+**Safety:** every command runs as an argument list with `shell=False`. The only user value passed to a command is the device serial. It must match `[A-Za-z0-9._:-]` (up to 128 characters, not starting with `-`), and it must be listed by `adb devices` in the `device` (ready) state. Only one install runs at a time (HTTP 409 otherwise). Anyone who can reach the server port can trigger these actions (see §4).
+
+**API:**
+- `GET /api/scrcpy/status`: scrcpy/adb found, paths, versions, `install_route` (`apt`, `winget`, `brew` or `null`), `manual` instructions, `display_available`
+- `POST /api/scrcpy/install` with `{"confirm": true}`: streams plain-text output ending with `[EXIT n]`
+- `GET /api/scrcpy/devices`: parsed `adb devices -l` (`serial`, `state`, `model`, `product`, `device`, `usb`, `transport_id`, `ready`)
+- `POST /api/scrcpy/view` with `{"serial": "...", "max_size": 1024}` (`max_size` optional, 0–8192)
+
+Status codes:
+- 400: bad serial, bad `max_size`, or missing `confirm`
+- 404: device not in `adb devices`
+- 409: device not ready, or an install is already running
+- 424: scrcpy, adb, sudo, a display, or an install route is missing
+- 502: adb failed, or scrcpy exited immediately
+
 ### Not available today
 
 These are **not** in the code: automatic device discovery, a side-by-side fleet status dashboard, drift detection or re-sync, unattended first-boot provisioning, rollback, job cancel or retry, log export, saved passwords, SSH host-key pinning, a built-in VNC viewer, SD-card flashing (Pi Imager), a native Android app, and Pi Zero 2 W support. See [ROADMAP.md](../ROADMAP.md).
@@ -407,6 +455,7 @@ These are **not** in the code: automatic device discovery, a side-by-side fleet 
 | **Local files** | The app reads and writes `devices.json` and `profiles.json` in your user config folder (§7). |
 | **SSH host keys** | Unknown host keys are **auto-accepted** (Paramiko `AutoAddPolicy`). This is convenient for a USB-attached Pi, but it does not protect you from man-in-the-middle attacks on untrusted networks. |
 | **Serial ports (ESP32 flashing)** | Flashing opens the board's USB serial port on the computer running the app. On Linux your user usually needs to be in the `dialout` group (`sudo usermod -aG dialout $USER`, then log out and back in), or the port open fails with "Permission denied". Windows may need the CP210x/CH340 USB-serial driver. *Untested on hardware.* |
+| **Android USB debugging (scrcpy, optional)** | Viewing a phone screen needs USB debugging enabled and the phone's approval prompt accepted. Installing scrcpy/adb on Linux needs root (the app uses `sudo -n` if it is not root). *Untested on hardware.* |
 | **VNC** | `vncserver` is started with `-localhost no`, so port 5901 is open on the Pi's network interfaces, protected only by the VNC password (default `bakerpi`). |
 
 The catalog's security tools (nmap, aircrack-ng, Metasploit, …) are for **authorized** testing and research only.

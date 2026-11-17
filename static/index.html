@@ -286,20 +286,20 @@ button { cursor: pointer; font: inherit; }
 
 
 /* ── ESP32 Flashing Panel (untested on hardware) ───────────────── */
-#esp32-panel { display:none; background:var(--surface); border:1px solid var(--border);
+#esp32-panel, #scrcpy-panel { display:none; background:var(--surface); border:1px solid var(--border);
   border-radius:var(--radius); padding:16px 18px; margin-bottom:16px; position:relative; }
-#esp32-panel.visible { display:block; }
-#esp32-panel::before { content:""; position:absolute; inset:-1px; border-radius:inherit; padding:1px;
+#esp32-panel.visible, #scrcpy-panel.visible { display:block; }
+#esp32-panel::before, #scrcpy-panel::before { content:""; position:absolute; inset:-1px; border-radius:inherit; padding:1px;
   background:linear-gradient(90deg, #00f0ff, #ff00e5);
   -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite:xor; mask-composite:exclude; pointer-events:none; }
-#esp32-panel h4 { font-size:13px; font-weight:600; margin-bottom:10px; display:flex; align-items:center; gap:10px; }
-#esp32-panel .neon-ring { width:22px; height:22px; }
-#esp32-panel select, #esp32-panel input[type=text] { background:var(--bg); border:1px solid var(--border);
+#esp32-panel h4, #scrcpy-panel h4 { font-size:13px; font-weight:600; margin-bottom:10px; display:flex; align-items:center; gap:10px; }
+#esp32-panel .neon-ring, #scrcpy-panel .neon-ring { width:22px; height:22px; }
+#esp32-panel select, #esp32-panel input[type=text], #scrcpy-panel select, #scrcpy-panel input[type=number] { background:var(--bg); border:1px solid var(--border);
   border-radius:var(--radius); color:var(--text); padding:5px 8px; font-size:12px; font-family:var(--mono); }
 #esp32-output { font-family:var(--mono); font-size:12px; background:var(--bg); border:1px solid var(--border);
   border-radius:4px; padding:8px 12px; margin-top:10px; max-height:320px; overflow:auto; white-space:pre-wrap; display:none; }
-#esp32-tc-output { font-family:var(--mono); font-size:12px; background:var(--bg); border:1px solid var(--border);
+#esp32-tc-output, #scrcpy-output { font-family:var(--mono); font-size:12px; background:var(--bg); border:1px solid var(--border);
   border-radius:4px; padding:8px 12px; margin-top:10px; max-height:320px; overflow:auto; white-space:pre-wrap; display:none; }
 .tc-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:6px 0; font-size:12px; }
 .tc-dot { width:9px; height:9px; border-radius:50%; background:var(--muted); display:inline-block; }
@@ -501,6 +501,11 @@ button { cursor: pointer; font: inherit; }
         <span class="cat-icon">⚡</span>
         <span class="cat-label">ESP32 Flashing</span>
       </button>
+      <div class="sidebar-section">Android</div>
+      <button class="cat-btn" data-cat="scrcpy" onclick="selectCat('scrcpy', this)">
+        <span class="cat-icon">📱</span>
+        <span class="cat-label">Device Screen (scrcpy)</span>
+      </button>
     </nav>
 
     <!-- Main -->
@@ -616,6 +621,38 @@ button { cursor: pointer; font: inherit; }
           <div id="prov-info" style="font-size:12px;margin-top:8px"></div>
           <form id="prov-form" autocomplete="off" onsubmit="return false" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"></form>
           <pre id="prov-output" style="font-family:var(--mono);font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px;max-height:220px;overflow:auto;white-space:pre-wrap;display:none"></pre>
+        </div>
+      </div>
+
+      <!-- Optional scrcpy + adb panel (scrcpy by Genymobile, Apache-2.0; untested on hardware) -->
+      <div id="scrcpy-panel">
+        <h4><span class="neon-ring" aria-hidden="true"></span> Android Device Screen (scrcpy)
+          <span class="untested-badge" title="Mocked subprocess tests only; not verified with a real phone">UNTESTED ON HARDWARE</span></h4>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Optional, off by default. Mirrors and controls a
+          USB-connected Android phone in a window on <b>the computer running this app</b> (not the remote Pi). Needs USB debugging
+          enabled on the phone. Nothing is installed unless you press Install. Credit:
+          <a href="https://github.com/Genymobile/scrcpy" target="_blank" rel="noopener">scrcpy by Genymobile, Apache-2.0</a>.</div>
+        <div class="tc-row"><span class="tc-dot" id="scrcpy-dot-scrcpy"></span><b>scrcpy</b>
+          <span id="scrcpy-info-scrcpy" style="color:var(--muted)"></span></div>
+        <div class="tc-row"><span class="tc-dot" id="scrcpy-dot-adb"></span><b>adb</b>
+          <span id="scrcpy-info-adb" style="color:var(--muted)"></span></div>
+        <div class="tc-row">
+          <button class="btn btn-sm" id="scrcpy-install-btn" onclick="scrcpyInstall()">Install scrcpy + adb</button>
+          <span id="scrcpy-route" style="color:var(--muted)"></span></div>
+        <div id="scrcpy-manual" class="vnc-note" style="display:none;margin:6px 0"></div>
+        <pre id="scrcpy-output"></pre>
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-top:12px">
+          <div class="form-field"><label>Device</label>
+            <div style="display:flex;gap:6px"><select id="scrcpy-device"></select>
+            <button class="btn btn-sm" onclick="scrcpyLoadDevices()" title="Rescan adb devices">↻</button></div></div>
+          <div class="form-field"><label>Max size (px, 0 = full)</label>
+            <input type="number" id="scrcpy-max-size" value="0" min="0" max="8192" step="1" style="width:90px"></div>
+          <button class="btn primary btn-sm" id="scrcpy-view-btn" onclick="scrcpyView()">📱 View device screen</button>
+          <span id="scrcpy-status" style="font-size:12px;color:var(--muted)"></span>
+        </div>
+        <div class="vnc-note" style="margin-top:10px">
+          On Linux the app needs a graphical session (DISPLAY or WAYLAND_DISPLAY); a headless Pi cannot show the window.
+          Not yet verified with a real Android device.
         </div>
       </div>
 
@@ -890,6 +927,15 @@ function selectCat(catId, btn) {
     esp32Init();
   } else {
     espPanel.classList.remove('visible');
+  }
+  const scrcpyPanel = document.getElementById('scrcpy-panel');
+  if (catId === 'scrcpy') {
+    document.getElementById('cat-title').textContent = 'Android Device Screen';
+    document.getElementById('cat-desc').textContent = 'Optional scrcpy + adb: view and control a USB-connected Android device (untested on hardware)';
+    scrcpyPanel.classList.add('visible');
+    scrcpyInit();
+  } else {
+    scrcpyPanel.classList.remove('visible');
   }
   const vncPanel = document.getElementById('vnc-panel');
   if (catId === 'os_environments') {
@@ -2098,6 +2144,88 @@ async function esp32TcInstall(item) {
     out.textContent += 'Error: ' + e.message + '\n';
     showToast(e.message, 'error');
   } finally { btns.forEach(b => b.disabled = false); esp32TcStatus(); }
+}
+
+// ── Optional scrcpy + adb (scrcpy by Genymobile, Apache-2.0) — UNTESTED ON HARDWARE
+function scrcpyErr(j, fallback) {
+  if (!j || j.detail === undefined) return fallback;
+  return typeof j.detail === 'string' ? j.detail : (j.detail.message || JSON.stringify(j.detail));
+}
+async function scrcpyInit() { await scrcpyStatus(); scrcpyLoadDevices(); }
+async function scrcpyStatus() {
+  try {
+    const st = await (await fetch('/api/scrcpy/status')).json();
+    for (const key of ['scrcpy', 'adb']) {
+      const s = st[key];
+      document.getElementById('scrcpy-dot-' + key).className = 'tc-dot ' + (s.installed ? 'ok' : 'no');
+      document.getElementById('scrcpy-info-' + key).textContent = s.installed
+        ? 'Installed' + (s.version ? ' ' + s.version : '') + (s.path ? ' (' + s.path + ')' : '')
+        : 'Not installed';
+    }
+    const routes = {apt: 'via apt-get (sudo -n if not root)', winget: 'via winget (Genymobile.scrcpy)',
+                    brew: 'via Homebrew (scrcpy + android-platform-tools)'};
+    const btn = document.getElementById('scrcpy-install-btn');
+    const manual = document.getElementById('scrcpy-manual');
+    btn.disabled = !st.install_route || st.busy;
+    document.getElementById('scrcpy-route').textContent = st.install_route
+      ? 'Installs ' + routes[st.install_route] + '.' + (st.busy ? ' (install running…)' : '')
+      : 'No supported package manager on this computer.';
+    if (st.manual) {
+      manual.style.display = 'block';
+      manual.innerHTML = escHtml(st.manual.text) + ' <a href="' + escHtml(st.manual.url) +
+        '" target="_blank" rel="noopener">' + escHtml(st.manual.url) + '</a>';
+    } else manual.style.display = 'none';
+    if (!st.display_available) document.getElementById('scrcpy-status').textContent =
+      'No graphical display detected: viewing will not work on this computer.';
+  } catch (e) { showToast('scrcpy status failed: ' + e.message, 'error'); }
+}
+async function scrcpyLoadDevices() {
+  const sel = document.getElementById('scrcpy-device');
+  try {
+    const r = await fetch('/api/scrcpy/devices');
+    const j = await r.json();
+    if (!r.ok) { sel.innerHTML = '<option value="">(' + escHtml(scrcpyErr(j, 'adb unavailable')) + ')</option>'; return; }
+    sel.innerHTML = j.devices.length ? j.devices.map(d =>
+      `<option value="${escHtml(d.serial)}"${d.ready ? '' : ' disabled'}>${escHtml(d.serial)}` +
+      `${d.model ? ' — ' + escHtml(d.model) : ''}${d.ready ? '' : ' (' + escHtml(d.state) + ')'}</option>`).join('')
+      : '<option value="">(no devices — plug in a phone with USB debugging on)</option>';
+  } catch (e) { sel.innerHTML = '<option value="">(error)</option>'; showToast(e.message, 'error'); }
+}
+async function scrcpyInstall() {
+  if (!confirm('Install scrcpy and adb on the computer running this app, using its package manager?')) return;
+  const out = document.getElementById('scrcpy-output');
+  const btn = document.getElementById('scrcpy-install-btn');
+  out.style.display = 'block'; out.textContent = ''; btn.disabled = true;
+  try {
+    const r = await fetch('/api/scrcpy/install', {method: 'POST',
+      headers: {'Content-Type': 'application/json'}, body: JSON.stringify({confirm: true})});
+    if (!r.ok) { let j = null; try { j = await r.json(); } catch {} throw new Error(scrcpyErr(j, r.statusText)); }
+    const reader = r.body.getReader(); const dec = new TextDecoder();
+    for (;;) { const {done, value} = await reader.read(); if (done) break;
+      out.textContent += dec.decode(value, {stream: true}); out.scrollTop = out.scrollHeight; }
+    const m = out.textContent.match(/\[EXIT (-?\d+)\]/); const ok = m && m[1] === '0';
+    showToast(ok ? 'scrcpy + adb installed.' : 'Install failed — see output.', ok ? 'success' : 'error');
+  } catch (e) { out.textContent += 'Error: ' + e.message + '\n'; showToast(e.message, 'error'); }
+  finally { await scrcpyStatus(); scrcpyLoadDevices(); }
+}
+async function scrcpyView() {
+  const serial = document.getElementById('scrcpy-device').value;
+  const status = document.getElementById('scrcpy-status');
+  if (!serial) { showToast('Pick a ready device first.', 'error'); return; }
+  const body = {serial};
+  const ms = parseInt(document.getElementById('scrcpy-max-size').value, 10);
+  if (ms > 0) body.max_size = ms;
+  const btn = document.getElementById('scrcpy-view-btn');
+  btn.disabled = true; status.textContent = 'Starting scrcpy…';
+  try {
+    const r = await fetch('/api/scrcpy/view', {method: 'POST',
+      headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    const j = await r.json();
+    if (!r.ok) throw new Error(scrcpyErr(j, r.statusText) + (j.detail && j.detail.output ? '\n' + j.detail.output : ''));
+    status.textContent = 'scrcpy window opened (pid ' + j.pid + ').';
+    showToast('scrcpy started for ' + serial, 'success');
+  } catch (e) { status.textContent = 'Error: ' + e.message; showToast(e.message, 'error'); }
+  finally { btn.disabled = false; }
 }
 
 // ── Help / Manual view (renders docs/MANUAL.md from /api/manual) ─────────────

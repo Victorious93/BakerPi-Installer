@@ -32,6 +32,7 @@ BakerPi-Installer is a host-side installer UI for **BakerPi**, the [P4wnP1 A.L.O
 - **VNC control**: start/stop Kali/Parrot desktop sessions from the UI
 - **Device inventory & targeting** *(new, untested on real hardware — see [Multiple devices](#multiple-devices-device-inventory--targeting))*: keep a list of Pi targets, pick the active one, or run installs on several in parallel
 - **Fleet install profiles** *(new, untested on real hardware — see [Fleet install profiles](#fleet-install-profiles))*: save a named set of tools once and apply it to one or many devices in a single action
+- **Optional Android screen viewing (scrcpy + adb)**: off by default; detects scrcpy/adb, installs them only when you press Install (apt / winget / Homebrew, or manual instructions), lists `adb devices`, and opens a scrcpy window for a chosen phone. *Untested on hardware.* See [docs/MANUAL.md §3.21](docs/MANUAL.md)
 
 > **Security note:** Tools such as nmap, aircrack-ng and Metasploit are for authorized pentesting, red-team work and research only. DoS flood tools and medical/critical-infrastructure attack tools are excluded from the catalog.
 - **ESP32 tools** *(untested on hardware)*: flashing, detection, dev toolchain install, VictorModem / Pyra Claw firmware profiles and USB serial provisioning (see [ESP32](#esp32-untested-on-hardware) below)
@@ -293,6 +294,7 @@ profile_registry.py    Fleet install profiles: persisted named toolsets (stdlib 
 tests/                 pytest suite (no hardware needed)
 docs/MANUAL.md         Full user manual (also shown in-app via ❓ Help, GET /api/manual)
 launcher.py            pywebview native shell around the same UI
+scrcpy_support.py      Optional scrcpy + adb detect / install / view (untested on hardware)
 static/                Web UI (index.html), PWA manifest, logo, favicon
 tools/catalog.json     Tool definitions (81 tools, 13 categories)
 install_scripts/       Shell helpers per category (HID, network, security, ...)
@@ -338,6 +340,10 @@ Because no APK ships today, **there is no Android app-signing key in this reposi
 ### Roadmap
 
 Planned directions (**not yet implemented or tested**) include multi-Pi fleet management (multi-device targeting, install profiles, inventory, drift detection, unattended provisioning, batch update/rollback) and a native Android app with built-in Pi Imager SD-card flashing that could flash and provision BakerPi onto a Pi over USB-OTG directly from the phone and then fully control the connected Pi from the phone, plus the Raspberry Pi Zero 2 W as an additional planned (untested) target alongside the current Pi Zero 1.3. See [ROADMAP.md](ROADMAP.md) for details.
+
+## Third-party credits
+
+- [scrcpy by Genymobile, Apache-2.0](https://github.com/Genymobile/scrcpy). Not bundled: BakerPi only detects it on `PATH` or installs it through your package manager on request.
 
 ## License
 
