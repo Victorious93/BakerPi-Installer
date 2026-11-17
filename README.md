@@ -84,6 +84,7 @@ A native Android APK path is documented against the BakerPi / P4wnP1_aloa fork�
 - **Responsive PWA** — phone portrait through desktop; home-screen installable
 - **PC SSH mode + on-device mode** — single FastAPI codebase (`server.py` + `launcher.py`)
 - **VNC desktop control** — start/stop Kali/Parrot desktop sessions from the UI
+- **Optional Android screen viewing (scrcpy + adb)** — off by default; detects scrcpy/adb, installs them only when you press Install (apt / winget / Homebrew, or manual instructions), lists `adb devices`, and opens a scrcpy window for a chosen phone. *Untested on hardware.* See [docs/MANUAL.md §3.21](docs/MANUAL.md)
 
 > **Security note:** Tools such as nmap, aircrack-ng, Metasploit, etc. are for authorized pentesting, red-team work, and research only. DoS flood tools and medical/critical-infrastructure attack tools are excluded from the catalog.
 
@@ -178,6 +179,7 @@ Default VNC password documented historically as `bakerpi` — change with `vncpa
 ```text
 server.py              FastAPI app (catalog, install jobs, SSH, VNC, system info)
 launcher.py            pywebview native shell around the same UI
+scrcpy_support.py      Optional scrcpy + adb detect / install / view (untested on hardware)
 static/                Web UI (index.html), PWA manifest, favicon
 tools/catalog.json     Tool definitions (81 tools, 13 categories)
 install_scripts/       Shell helpers per category (HID, network, security, …)
@@ -191,6 +193,10 @@ bakerpi-installer.desktop
 - Keep catalog entries accurate (`check_cmd` / packages / scripts).
 - Prefer additive tools that fit authorized research; do not add excluded DoS/critical-infra attack tooling.
 - Test SSH mode and local mode when changing `server.py` job streaming.
+
+## Third-party credits
+
+- [scrcpy by Genymobile, Apache-2.0](https://github.com/Genymobile/scrcpy). Not bundled: BakerPi only detects it on `PATH` or installs it through your package manager on request.
 
 ## License
 

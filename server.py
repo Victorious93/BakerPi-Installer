@@ -26,12 +26,13 @@ import uvicorn
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, StrictBool
+from pydantic import BaseModel, StrictBool, StrictInt
 
 import esp32_flasher
 import esp32_toolchain
 import esp32_fleet_profiles
 import esp32_provision
+import scrcpy_support
 from device_registry import (
     DEFAULT_DEVICE_ID, Device, DeviceError, DeviceNotFound, DeviceRegistry,
     build_default_device,
@@ -1154,6 +1155,69 @@ def esp32_toolchain_install(req: ToolchainInstallRequest):
         raise HTTPException(status_code=409, detail="A toolchain install is already running.")
     return StreamingResponse(esp32_toolchain.run_steps(steps, env, cleanup),
                              media_type="text/plain")
+
+# ── Optional scrcpy + adb (view an Android device screen) ────────────────────
+# scrcpy by Genymobile, Apache-2.0: https://github.com/Genymobile/scrcpy
+# Off by default: nothing installs unless POST /api/scrcpy/install has
+# confirm: true. Runs on the machine hosting this server (never over SSH).
+# UNTESTED ON HARDWARE: verified only with mocked subprocess in tests/.
+
+class ScrcpyInstallRequest(BaseModel):
+    confirm: Optional[StrictBool] = None
+
+class ScrcpyViewRequest(BaseModel):
+    serial: str
+    max_size: Optional[StrictInt] = None
+
+@app.get("/api/scrcpy/status")
+def scrcpy_status():
+    return scrcpy_support.status()
+
+@app.post("/api/scrcpy/install")
+def scrcpy_install(req: ScrcpyInstallRequest):
+    try:
+        steps, env = scrcpy_support.plan_install(req.confirm)
+    except scrcpy_support.ScrcpyValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except scrcpy_support.NoInstallRoute as e:
+        raise HTTPException(status_code=424, detail={
+            "message": str(e), "manual": e.manual})
+    except scrcpy_support.ScrcpyUnavailable as e:
+        raise HTTPException(status_code=424, detail={
+            "message": str(e), "missing": e.missing,
+            "manual": scrcpy_support.manual_instructions()})
+    if not scrcpy_support.acquire():
+        raise HTTPException(status_code=409, detail="A scrcpy install is already running.")
+    return StreamingResponse(scrcpy_support.run_steps(steps, env), media_type="text/plain")
+
+@app.get("/api/scrcpy/devices")
+def scrcpy_devices():
+    try:
+        return {"devices": scrcpy_support.list_devices()}
+    except scrcpy_support.ScrcpyUnavailable as e:
+        raise HTTPException(status_code=424, detail={"message": str(e), "missing": e.missing})
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+@app.post("/api/scrcpy/view")
+def scrcpy_view(req: ScrcpyViewRequest):
+    try:
+        result = scrcpy_support.launch_view(req.serial, req.max_size)
+    except scrcpy_support.ScrcpyValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except scrcpy_support.ScrcpyUnavailable as e:
+        raise HTTPException(status_code=424, detail={"message": str(e), "missing": e.missing})
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except (RuntimeError, OSError) as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    if not result["launched"]:
+        raise HTTPException(status_code=502, detail={
+            "message": f"scrcpy exited immediately (exit {result['exit_code']}).",
+            **result})
+    return result
 
 # ── Startup ───────────────────────────────────────────────────────────────────
 
