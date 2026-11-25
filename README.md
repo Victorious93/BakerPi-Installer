@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/banner.png" alt="BakerPi-Installer — Part of the Victorious Framework fleet" width="1280" />
+<img src="assets/logo.png" alt="BakerPi-Installer logo" width="200" />
 
 # BakerPi-Installer
 
